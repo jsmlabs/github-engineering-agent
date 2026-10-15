@@ -1,98 +1,60 @@
 # Changelog
 
-Notable changes are grouped by release. The package uses its declared version in `pyproject.toml`; documentation-only edits do not independently increment the application version.
+[← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
+
+Notable implementation and documentation changes are grouped by release. **`Unreleased` is not a published package release.** The version declared in [`pyproject.toml`](pyproject.toml) remains **0.2.0**; documentation edits alone do not change it.
 
 ## Unreleased
 
-### Fail-closed model and recovery contracts
+### Security and input validation
 
-- Reject unexpected model output item types, incomplete messages, and non-text structured-message parts rather than silently ignoring them alongside valid JSON; retain reasoning and a single completed structured-text response.
-- Reject invalid and non-finite outbound API/model context JSON before network requests.
-- Reject missing repository/base fields in `status --remote` receipts with controlled errors before remote access.
-- Add positive and negative regressions without changing valid CLI, proposal schemas, authorization, dependencies, or draft-only behavior.
+- **Unified strict JSON boundaries:** reject duplicate object keys, including nested duplicates, and non-standard `NaN`/`Infinity` constants in generated JSON source, model Structured Outputs, GitHub/OpenAI HTTP responses, and private proposal/receipt/verification records. Treat excessive JSON nesting as a controlled error. Consolidate the shared parser.
+- **Fail-closed model output:** reject explicit refusals (including responses mixing refusal and text), unexpected output items/message parts, incomplete messages, ambiguous structured JSON and malformed outbound model/API JSON. Valid reasoning plus one completed structured-text response remains supported.
+- **Repository and GitHub identity:** reject malformed/non-string `owner/name` values and malformed API repository `full_name` with `AgentError` instead of uncaught type/attribute errors.
+- **PR reconciliation:** fail closed on malformed GitHub PR entries, multiple matching open PR records, incomplete searches and closed PR collisions; never silently choose an ambiguous match.
+- **Recovery input:** reject `status --remote` receipts missing repository/base identity before attempting remote access.
 
+### Verification, recovery and CI
 
-### CI supply-chain modernization
+- Add operator-configured Docker tests with preloaded digest-pinned images, bounded execution, no container network, read-only checkout and restricted privileges. Reject mount paths containing real newline/carriage return characters or commas before launch.
+- Bind verification reports to exact proposal SHA, branch and commit. Require **PASS** before draft publication; permit a justified explicit exception only when **no** report exists. Known FAIL or stale reports block publishing.
+- Provide a read-only `status` view for local and optional remote recovery, with negative tests for stale/ambiguous outcomes and simulated publication retries.
+- Expand offline GitHub Actions to Linux, macOS and Windows with Python 3.11 and 3.13. Upgrade official `actions/checkout` and `actions/setup-python` to v7, pin verified commit SHAs, retain read-only permissions and no persisted checkout credentials, and set a 15-minute per-job timeout.
+- Add positive and adversarial regression tests for JSON ambiguity, model output, repository identity, PR reconciliation, Docker configuration and recovery. See [commit-specific evidence](VERIFICATION.md) for actual executed results.
 
-- Upgrade `actions/checkout` and `actions/setup-python` to upstream v7, pinned to verified immutable Git commit SHAs; preserve read-only CI permissions, no checkout credentials and the existing six-configuration test matrix.
-- Bound workflow jobs to 15 minutes and remove an incorrectly positioned changelog entry without changing runtime behavior.
+### Documentation and developer experience
 
-
-### Unified strict JSON boundaries
-
-- Reject duplicate JSON keys (including nested keys) and non-finite numeric constants in saved proposal/receipt/verification records and GitHub/OpenAI HTTP responses.
-- Reuse one strict parser for API responses, model structured output, JSON source validation, and local state; handle excessive JSON nesting as a controlled validation error.
-- Add negative and positive regression tests; no changes to valid JSON formats, CLI, authorization, runtime dependencies, or package version.
-
-
-### Repository input boundary
-
-- Reject non-string repository identifiers with a controlled `AgentError` before regex validation, preserving valid owner/name handling; add regression tests.
-
-
-### Repository metadata validation
-
-- Reject malformed GitHub repository identity fields with an explicit `AgentError` instead of an uncaught attribute exception. Add valid and malformed metadata regression tests.
-
-
-### Model refusal handling
-
-- Reject model responses containing explicit refusal parts, including mixed refusal and structured-text messages; add deterministic regression tests.
-
-### Structured model-output validation
-
-- Fail closed on duplicate JSON object keys (including nested keys) and non-finite numeric constants in model-generated structured output before proposal validation.
-- Add malformed-response regression coverage; no CLI, proposal schema, version, or permission changes.
-
-### Strict JSON source validation
-
-- Reject duplicate JSON object keys, including nested duplicates, and non-standard non-finite values (`NaN`, `Infinity`, `-Infinity`) before accepting generated JSON edits.
-- Add regression coverage without changing the proposal schema, CLI options, or package version.
-
-### Verification and recovery (integrated into `main`)
-
-- Reject actual newline and carriage-return characters in Docker bind-mount paths before invoking Docker; add a no-subprocess regression test.
-- Added optional operator-configured Docker tests using an explicit digest-pinned image and bounded, no-network container invocation.
-- Required an exact commit-bound passing verification record before draft publication, with an explicit auditable exception only for unexecuted tests.
-- Added read-only local/remote status inspection, negative verification tests and a multi-platform offline CI matrix.
-- Kept proposal schema 2 and package version 0.2.0 unchanged; these changes have not been assigned a new release version.
-
-
-### Reliability
-
-- Reject multiple matching open PR reconciliation results rather than trusting the first result (previously listed outside the Unreleased section).
-
-- Integrate fail-closed OpenAI Responses message-content validation and its positive/negative regression tests from PR #3.
-- Fail closed with `AgentError` when GitHub pull-request search results contain malformed records or nested fields, instead of leaking an unhandled exception. Added positive and negative regression tests.
-
-### Documentation
-
-- Reorganized the README around onboarding, **reviewed vs. high-trust execution**, authorization flags, state checks, and recovery.
-- Added a focused [architecture and recovery guide](docs/ARCHITECTURE.md) covering model/deterministic boundaries, side effects and partial outcomes.
-- Reworked [security guidance](SECURITY.md) with a threat-boundary matrix, least-privilege setup and incident handling.
-- Clarified in [verification evidence](VERIFICATION.md) what was tested offline and what remains unverified in live GitHub/OpenAI integrations.
-- Documentation-only restructuring introduced no CLI, source-code, proposal-format or package-version changes; the separately listed verification/reliability work does change implementation.
+- Redesign the README with a clearer task-oriented start, linked navigation, accessible workflow diagram, authorization matrix, concise command examples and separate reviewed versus high-trust modes.
+- Consolidate [security boundaries](SECURITY.md) by trust boundary and operator responsibility; clarify provider disclosure, residual risks, and incident handling.
+- Reorganize [architecture and recovery](docs/ARCHITECTURE.md) around implementation contracts, exact state transitions, file schemas and partial-failure reconciliation.
+- Refresh [verification](VERIFICATION.md) to prioritize current commit-specific CI results while retaining historical evidence and explicit unverified capabilities.
+- Normalize changelog grouping and reduce redundant historical notes. These documentation changes **do not** alter CLI flags, proposal schema, permission gates, package dependencies or application version.
 
 ## 0.2.0 - 2026-10-15
 
-### Scope and approvals
+### Authorization and workflows
 
-- Required explicit `--allowed-file` boundaries for planning and autonomous execution; removed implicit repository-wide file selection.
-- Bound manual `apply` authorization to the SHA-256 printed by `review`; kept opt-in `run` as a separate high-trust mode.
-- Added complete proposal diff inspection with `review` and prevented automatic source-diff printing during `plan`.
+- Require explicit `--allowed-file` scopes; remove implicit repository-wide model file selection.
+- Bind manual `apply` to the exact proposal SHA-256 printed by `review`; retain `run` as an explicitly authorized, high-trust mode.
+- Print complete proposed source changes only during review, not automatically during planning.
 
-### Integrity and safety
+### Repository integrity and safety
 
-- Tightened exact remote-ref checks, rejected incomplete PR results and closed PR collisions, and rechecked issue/base before PR creation.
-- Used a create-only Git push lease to reject concurrent remote branch creation without overwriting another commit.
-- Added conservative credential and terminal-control checks for issue text, selected source and generated edits.
-- Added Python/JSON syntax checks, applied-proposal SHA-256 receipts and exact committed Git blob verification.
-- Strengthened issue timestamps, input validation and offline tests for race conditions, tampering, remote effects and explicit consent.
+- Tighten repository/remote branch identity checks, refuse incomplete PR results and closed PR collisions, and recheck the issue/base before PR creation.
+- Use a create-only Git push lease to prevent overwriting another remote branch; verify the resulting remote ref.
+- Introduce conservative source/issue credential heuristics and terminal-control checks.
+- Validate Python/JSON syntax, proposal/source hashes, staged changes and exact committed Git blobs; record private apply receipts.
+- Extend offline regression tests for authorization, stale state, tampering, race conditions and side effects.
 
-### Breaking compatibility
+### Compatibility break
 
-- **Proposal schema 2 is incompatible with v0.1.0 schema 1.** Previously generated proposals/receipts cannot be applied or published by v0.2.0; create a fresh plan with explicit file scope.
+> [!WARNING]
+> **Proposal/receipt schema 2 is incompatible with v0.1.0 schema 1.** Older proposals and receipts cannot be applied or published with v0.2.0. Create a new plan with an explicit file allowlist; no automatic migration is available.
 
 ## 0.1.0 - 2026-10-15
 
-- Initial standalone, bounded `plan`, `apply`, `publish` and `run` issue-to-draft-PR reference implementation.
+- Initial standalone Python reference CLI supporting bounded issue-to-draft-PR `plan`, `apply`, `publish` and `run` workflows.
+
+---
+
+See [VERIFICATION.md](VERIFICATION.md) for executed CI/test evidence. Version and release metadata must be updated only when a release is intentionally prepared under repository policy.
