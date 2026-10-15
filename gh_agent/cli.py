@@ -247,6 +247,8 @@ def status(args) -> None:
         gate = "NOT_VERIFIED: " + str(exc)
     print("VERIFICATION", gate)
     if args.remote:
+        if not isinstance(receipt.get("repo"), str) or not isinstance(receipt.get("base"), str):
+            raise AgentError("Remote status requires valid repository and base receipt fields")
         assert_checkout(checkout, receipt["repo"], receipt["base"], require_base=False)
         remote = remote_branch_sha(checkout, receipt["branch"])
         print("REMOTE_BRANCH", remote if remote is not None else "ABSENT")
