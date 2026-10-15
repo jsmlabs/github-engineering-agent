@@ -79,6 +79,8 @@ python -m gh_agent --help
 python scripts/verify.py
 ~~~
 
+GitHub Actions runs the offline checks on Ubuntu, macOS and Windows with Python 3.11/3.13, plus Python 3.12 on Ubuntu. These checks do **not** replace authenticated provider or real Docker end-to-end validation.
+
 The installed entry point is also `gh-engineer`. The runtime uses Python's standard library; package installation may require build tooling. `scripts/verify.py` checks compilation, offline unit tests and CLI help — **not live services**.
 
 ### 3. Plan, inspect and approve
