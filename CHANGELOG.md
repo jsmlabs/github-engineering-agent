@@ -15,6 +15,7 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ### Reliability
 
+- Integrate fail-closed OpenAI Responses message-content validation and its positive/negative regression tests from PR #3.
 - Fail closed with `AgentError` when GitHub pull-request search results contain malformed records or nested fields, instead of leaking an unhandled exception. Added positive and negative regression tests.
 
 ### Documentation
