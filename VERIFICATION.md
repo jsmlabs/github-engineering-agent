@@ -46,6 +46,10 @@ This bounded pilot addresses malformed GitHub pull-request search data. Prior to
 
 No new Python dependency, version change, schema change or automatic merge/deployment was introduced. The test results refer to the changed source tree, not to the original v0.2.0 release.
 
+## Unreleased: malformed model message content (2026-10-15)
+
+The `Model.ask` parser now rejects non-list `message.content` values and non-object content entries with `AgentError`. Two new offline regression tests cover malformed content and a valid structured response containing a reasoning item. These changes were inspected through the connected GitHub API; **the repository test suite and live OpenAI integration were not executed in this session** because the execution environment could not fetch the repository. Validation remains pending in a suitable checkout or CI environment.
+
 ## Explicitly not verified
 
 | Concern | Evidence status |
