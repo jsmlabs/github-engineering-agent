@@ -7,19 +7,19 @@
 
 ## Latest verified baseline
 
-**Verified baseline: merged PR #19 on `main`, 2026-10-15.**
+**Verified baseline: merged PR #20 on `main`, 2026-10-15.**
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`00e5db16842be3034831cb1b7540b9507f76c2ed`](https://github.com/jsmlabs/github-engineering-agent/commit/00e5db16842be3034831cb1b7540b9507f76c2ed) |
-| Offline workflow on that commit | [Run 38821668140](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821668140): **completed / success** |
-| Matrix | **6/6 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **77 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Authoritative `main` commit | [`0e0c6ec5c431ad600138175d7ee032899df1c91e`](https://github.com/jsmlabs/github-engineering-agent/commit/0e0c6ec5c431ad600138175d7ee032899df1c91e) |
+| Offline workflow on that commit | [Run 38823441682](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38823441682): **completed / success** |
+| Matrix | **7/7 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 plus Ubuntu/Python 3.12 |
+| Concrete test observation | Ubuntu/Python 3.13 job: **79 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
 | Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
 | Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
 | Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
 
-The snapshot SHA and workflow identify the last verified merged baseline before the present enhancement PR. The expanded Python 3.12 job and new regression tests must be evaluated on their own exact commit; do not transfer success between commits.
+The snapshot SHA and workflow identify the last verified merged baseline before this CLI UX change. New terminal command tests and smoke checks must be evaluated on their own exact commit; do not transfer success between commits.
 
 ## Recent change evidence
 
@@ -33,6 +33,7 @@ The snapshot SHA and workflow identify the last verified merged baseline before 
 | [#17 JSON hardening](https://github.com/jsmlabs/github-engineering-agent/pull/17) | [38814929977](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38814929977), **6/6 pass** | [38815112621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38815112621), **success** on `45d49e3436cc53cf8cbc38df43463ba394d09bcd` | Offline regressions including overflowed numbers, Unicode validation and bounded state JSON |
 | [#18 expanded scope](https://github.com/jsmlabs/github-engineering-agent/pull/18) | [38820016938](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820016938), **6/6 pass** | [38820648522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820648522), **success** on `98a2139c4474be54fcdb3f462ebf8834e6c6cc69` | Offline 74-test suite includes new file, workflow-review gate, isolation and PR-readiness regressions |
 | [#19 type and transport hardening](https://github.com/jsmlabs/github-engineering-agent/pull/19) | [38821493237](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821493237), **6/6 pass** | [38821668140](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821668140), **success** on `00e5db16842be3034831cb1b7540b9507f76c2ed` | Offline regressions for exact verification exit-code types, issue number typing and disconnected API responses |
+| [#20 three-pass quality improvements](https://github.com/jsmlabs/github-engineering-agent/pull/20) | [38823292220](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38823292220), **7/7 pass** | [38823441682](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38823441682), **success** on `0e0c6ec5c431ad600138175d7ee032899df1c91e` | Offline 79-test suite across 7 OS/Python jobs including Ubuntu/Python 3.12 |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
@@ -47,9 +48,9 @@ python -m unittest discover -s tests -v
 python -m gh_agent --help
 ~~~
 
-`scripts/verify.py` runs: (1) `python -m compileall -q gh_agent tests`, (2) verbose unittest discovery, then (3) `python -m gh_agent --help`. It exits nonzero on a failed command.
+`scripts/verify.py` runs: (1) `python -m compileall -q gh_agent tests`, (2) verbose unittest discovery, then (3) `python -m gh_agent --help`. The CLI enhancement adds read-only smoke commands for the home screen, guide, doctor help, and next help. It exits nonzero on a failed command.
 
-The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The proposed GitHub Actions workflow is configured for **seven** jobs: the original six OS/Python combinations plus Ubuntu/Python 3.12, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout. The additional job is not counted as verified until its exact-commit run succeeds.
+The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The configured GitHub Actions workflow runs seven jobs: six OS/Python combinations plus Ubuntu/Python 3.12, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout. This CLI UX change additionally tests the home screen, guide and command help; only the exact-commit CI result can establish whether those pass.
 
 ### Evidence classification
 

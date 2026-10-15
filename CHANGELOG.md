@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Terminal experience and guided operation
+
+- Introduce a concise CLI home screen, `guide` step-by-step onboarding, offline `doctor` preflight and read-only `next` suggestions backed by local proposal/receipt/verification checks.
+- Default `--checkout` to the current working directory, while preserving all explicit path options and the original `plan`/`review`/`apply`/`verify`/`status`/`publish`/`run` commands and authorization contracts.
+- Extend regression coverage for terminal navigation, no-network/no-mutation guidance, dirty-checkout diagnostics, and stale/failed verification states; add CLI smoke checks across the platform matrix.
+
 ### API data validation and test compatibility
 
 - Fail closed on malformed repository archive/default-branch metadata and on non-string GitHub issue bodies, including empty lists, objects, booleans and numbers; preserve valid null or string bodies.

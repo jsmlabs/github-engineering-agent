@@ -10,6 +10,10 @@ COMMANDS = [
     [sys.executable, "-m", "compileall", "-q", "gh_agent", "tests"],
     [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
     [sys.executable, "-m", "gh_agent", "--help"],
+    [sys.executable, "-m", "gh_agent"],
+    [sys.executable, "-m", "gh_agent", "guide"],
+    [sys.executable, "-m", "gh_agent", "doctor", "--help"],
+    [sys.executable, "-m", "gh_agent", "next", "--help"],
 ]
 
 

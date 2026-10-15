@@ -22,6 +22,7 @@
 
 | Operation | Required authorization | Maximum intended effect |
 | --- | --- | --- |
+| `guide`, `doctor`, `next` | No permission grants | Local instructions or read-only state checks, never model or remote writes |
 | `plan` | `--allow-source-upload` and 1–12 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
 | `review` | None | Print full proposed diff/digest, **no modification** |
 | `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
@@ -29,6 +30,8 @@
 | `status` | None | Inspect local state; `--remote` adds read-only remote lookups |
 | `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open PR (draft by default)** |
 | `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
+
+The terminal assumes the current working directory as the checkout unless `--checkout` is supplied. `doctor` inspects local Git and reports credential presence only; `next` never executes its suggestions and refuses mismatched state. Neither command attests to the security of the local host, credentials or dependencies.
 
 The agent **does not** merge, approve PR reviews, deploy, delete files, create unapproved files, execute model-proposed shell commands, or mutate arbitrary paths. Security controls are deterministic checks in application code, not guarantees provided by model instructions.
 
