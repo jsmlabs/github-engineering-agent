@@ -114,10 +114,9 @@ class AgentTest(unittest.TestCase):
         with patch.object(cli.sys, "stdout", FakeTTY()):
             with patch.dict(os.environ, {"TERM": "xterm", "NO_COLOR": ""}):
                 self.assertEqual(cli.menu_style("hello", "1;36"), "hello")
-            with patch.dict(os.environ, {"TERM": "xterm"}):
-                with patch.dict(os.environ, {"NO_COLOR": None}) if False else patch.dict(os.environ, {}, clear=False):
-                    # A caller's NO_COLOR is handled deterministically either way.
-                    self.assertEqual(cli.menu_style("hello", "1;36", no_color=True), "hello")
+            with patch.dict(os.environ, {"TERM": "xterm"}, clear=True):
+                self.assertEqual(cli.menu_style("hello", "1;36"), "\033[1;36mhello\033[0m")
+                self.assertEqual(cli.menu_style("hello", "1;36", no_color=True), "hello")
 
     def test_menu_handles_eof_and_has_iteration_limit(self):
         class FakeTTY(StringIO):
