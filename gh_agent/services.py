@@ -27,7 +27,10 @@ def json_request(url: str, *, token: str, payload: dict | None = None, github: b
         headers["X-GitHub-Api-Version"] = "2026-03-10"
     data = None
     if payload is not None:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        try:
+            data = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        except (TypeError, ValueError, RecursionError) as exc:
+            raise AgentError("Invalid API request JSON") from exc
         if len(data) > 180_000:
             raise AgentError("Request exceeds size budget")
         headers["Content-Type"] = "application/json"
@@ -137,10 +140,14 @@ class Model:
         self.key, self.model = api_key, model
 
     def ask(self, instructions: str, context: dict, schema: dict, name: str) -> dict:
+        try:
+            context_json = json.dumps(context, ensure_ascii=False, allow_nan=False)
+        except (TypeError, ValueError, RecursionError) as exc:
+            raise AgentError("Invalid model context JSON") from exc
         request = {
             "model": self.model,
             "instructions": instructions,
-            "input": json.dumps(context, ensure_ascii=False),
+            "input": context_json,
             "store": False,
             "max_output_tokens": 12_000,
             "text": {"format": {"type": "json_schema", "name": name, "strict": True, "schema": schema}},
@@ -153,14 +160,22 @@ class Model:
             raise AgentError("Malformed model output")
         content = []
         for item in messages:
-            if not isinstance(item, dict) or item.get("type") != "message":
+            if not isinstance(item, dict):
+                raise AgentError("Malformed model output item")
+            if item.get("type") == "reasoning":
                 continue
+            if item.get("type") != "message":
+                raise AgentError("Unexpected model output item")
+            if item.get("status") not in (None, "completed"):
+                raise AgentError("Model message incomplete")
             parts = item.get("content")
             if not isinstance(parts, list) or not all(isinstance(part, dict) for part in parts):
                 raise AgentError("Malformed model message content")
             if any(part.get("type") == "refusal" for part in parts):
                 raise AgentError("Model response refused")
-            content.extend(part for part in parts if part.get("type") == "output_text")
+            if any(part.get("type") != "output_text" for part in parts):
+                raise AgentError("Unexpected model message content")
+            content.extend(parts)
         if len(content) != 1 or not isinstance(content[0].get("text"), str):
             raise AgentError("Missing single structured model output")
         try:
