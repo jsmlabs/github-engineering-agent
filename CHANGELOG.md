@@ -24,6 +24,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ### Documentation and developer experience
 
+- Polish the README presentation with a compact hero, clearer three-pillar overview, mobile-friendly workflow diagram, progressive-disclosure examples, and more prominent safety/operational guidance; no application behavior changes.
 - Redesign the README with a clearer task-oriented start, linked navigation, accessible workflow diagram, authorization matrix, concise command examples and separate reviewed versus high-trust modes.
 - Consolidate [security boundaries](SECURITY.md) by trust boundary and operator responsibility; clarify provider disclosure, residual risks, and incident handling.
 - Reorganize [architecture and recovery](docs/ARCHITECTURE.md) around implementation contracts, exact state transitions, file schemas and partial-failure reconciliation.
