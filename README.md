@@ -187,6 +187,9 @@ Use `run` only if your process allows publishing **unreviewed AI-generated edits
 
 ## Safety and limits
 
+The offline GitHub Actions matrix uses GitHub-hosted runners and pins the official checkout/setup-python v7 actions to verified immutable commit SHAs. Credentials are not persisted during checkout; jobs have read-only repository permission and a bounded execution timeout.
+
+
 | Guard | Implemented contract |
 | --- | --- |
 | File scope | **1–5** distinct, explicitly authorized, **existing tracked** UTF-8 files |
