@@ -31,7 +31,7 @@ def json_request(url: str, *, token: str, payload: dict | None = None, github: b
             data = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
         except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
             raise AgentError("Invalid API request JSON") from exc
-        if len(data) > 180_000:
+        if len(data) > 220_000:
             raise AgentError("Request exceeds size budget")
         headers["Content-Type"] = "application/json"
     req = Request(url, headers=headers, data=data, method="POST" if payload is not None else "GET")
@@ -150,10 +150,10 @@ class Model:
             "instructions": instructions,
             "input": context_json,
             "store": False,
-            "max_output_tokens": 12_000,
+            "max_output_tokens": 24_000,
             "text": {"format": {"type": "json_schema", "name": name, "strict": True, "schema": schema}},
         }
-        result = json_request("https://api.openai.com/v1/responses", token=self.key, payload=request, max_bytes=250_000)
+        result = json_request("https://api.openai.com/v1/responses", token=self.key, payload=request, max_bytes=520_000)
         if not isinstance(result, dict) or result.get("status") != "completed":
             raise AgentError("Model response incomplete, unavailable, or refused")
         messages = result.get("output")
