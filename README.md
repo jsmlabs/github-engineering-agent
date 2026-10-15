@@ -41,7 +41,7 @@ Open issue + explicitly approved files
 | `publish` | Create-only push, verified **draft** PR after passing gate | `--approve-publish`, verification or explicit exception |
 | `run` | Opt-in `plan → apply → publish` without an inspection pause | Source-upload, local-write and remote-publish approvals |
 
-**Recommended:** use `plan → review → apply → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
+**Recommended:** use `plan → review → apply → verify → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
 
 ## Quick start
 
@@ -162,10 +162,12 @@ python -m gh_agent run \
   --model YOUR_STRUCTURED_OUTPUT_MODEL \
   --allowed-file src/feature.py \
   --output /private/location/issue-123.json \
-  --allow-source-upload --approve-local --approve-publish
+  --allow-source-upload --approve-local --approve-publish \
+  --test-image registry.example/test-image@sha256:YOUR_64_HEX_DIGEST \
+  --test-command-json '["python","-m","unittest","discover","-s","tests"]'
 ```
 
-Use `run` only if your process allows publishing **unreviewed AI-generated edits as drafts**. The agent may stop partway through after a commit or push; review its actual state before retrying.
+Use `run` only if your process allows publishing **unreviewed AI-generated edits as drafts**. Without a configured test image and command, `run` requires both `--approve-unverified` and a justified `--unverified-reason` before planning. The agent may stop partway through after a commit or push; review its actual state before retrying.
 
 ## Safety and limits
 
