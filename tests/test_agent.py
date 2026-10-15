@@ -109,6 +109,15 @@ class AgentTest(unittest.TestCase):
                 run_isolated(self.checkout, image, ["python", "-V"], 10)
 
     @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
+    def test_isolated_test_rejects_control_characters_in_mount_path(self):
+        image = "example/test@sha256:" + "a" * 64
+        for character in ("\\n", "\\r", ","):
+            with self.subTest(character=repr(character)), patch("gh_agent.verification.subprocess.run") as run:
+                with self.assertRaisesRegex(AgentError, "POSIX path without mount delimiters"):
+                    run_isolated(Path(str(self.checkout) + character + "unsafe"), image, ["python", "-V"], 10)
+                run.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
     def test_isolated_test_enforces_container_flags(self):
         image = "trusted/image@sha256:" + "a" * 64
         captured = {}
