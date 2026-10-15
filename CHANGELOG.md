@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### API data validation and test compatibility
+
+- Fail closed on malformed repository archive/default-branch metadata and on non-string GitHub issue bodies, including empty lists, objects, booleans and numbers; preserve valid null or string bodies.
+- Add regression tests for accepted and rejected API shapes and a focused Ubuntu/Python 3.12 CI job alongside the existing six-job OS/Python matrix.
+- Align package description with supported draft and opt-in review-ready pull requests; no schema, permission, dependency or package-version change.
+
 ### Expanded engineering scope (unreleased)
 
 - Permit explicitly allowlisted creation of new files and directories and updates to named workflows, build configuration and dependency/lockfiles while retaining path/secret checks and scoped staging. Workflow changes require the reviewed `plan → review → apply` flow; unreviewed `run` blocks workflow scopes before planning.
