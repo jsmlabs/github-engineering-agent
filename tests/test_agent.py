@@ -446,6 +446,24 @@ class AgentTest(unittest.TestCase):
         with patch("gh_agent.services.json_request", return_value=response):
             self.assertEqual(Model("key", "name").ask("instructions", {}, {"type": "object"}, "test"), {"ok": True})
 
+    def test_model_rejects_ambiguous_structured_json(self):
+        for payload in (
+            '{"ok": true, "ok": false}',
+            '{"nested": {"key": 1, "key": 2}}',
+            '{"value": NaN}',
+            '{"value": Infinity}',
+            '{"value": -Infinity}',
+        ):
+            with self.subTest(payload=payload):
+                response = {"status": "completed", "output": [
+                    {"type": "message", "content": [
+                        {"type": "output_text", "text": payload}
+                    ]}
+                ]}
+                with patch("gh_agent.services.json_request", return_value=response):
+                    with self.assertRaisesRegex(AgentError, "Invalid structured model output"):
+                        Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
+
     def test_model_incomplete_is_blocked(self):
         with patch("gh_agent.services.json_request", return_value={"status": "incomplete", "output": []}):
             with self.assertRaises(AgentError):
