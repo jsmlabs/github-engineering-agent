@@ -61,6 +61,24 @@ class AgentTest(unittest.TestCase):
         self.assertIn("EXCEPTION:", check_gate(self.planfile, receipt, override=True,
                                               reason="Tests cannot run in this restricted environment"))
 
+    def test_verify_commit_records_exact_commit_and_allows_gate(self):
+        from gh_agent.verification import verify_commit
+        private_json_write(self.planfile, self.proposal())
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        receipt = json.loads(Path(str(self.planfile) + ".applied.json").read_text())
+        image = "trusted/image@sha256:" + "a" * 64
+        with patch("gh_agent.verification.run_isolated", return_value={
+            "exit_code": 0, "stdout_excerpt": "ok", "stderr_excerpt": ""}):
+            report = verify_commit(self.checkout, self.planfile, self.proposal(), receipt,
+                                   image, ["python", "-m", "unittest"], 30)
+        self.assertEqual(report["commit"], receipt["commit"])
+        self.assertEqual(report["outcome"], "PASS")
+        self.assertEqual(check_gate(self.planfile, receipt, override=False, reason=None), "PASS")
+        with self.assertRaisesRegex(AgentError, "already exists"):
+            verify_commit(self.checkout, self.planfile, self.proposal(), receipt,
+                          image, ["python", "-m", "unittest"], 30)
+
     def test_gate_commit_binding_and_failure_are_fail_closed(self):
         receipt = {"proposal_sha256": "a" * 64, "commit": "b" * 40, "branch": "agent/example"}
         report = {"schema": 1, **receipt, "exit_code": 0, "outcome": "PASS"}
