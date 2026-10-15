@@ -408,6 +408,14 @@ class AgentTest(unittest.TestCase):
         with patch.object(gh, "get", return_value=[unrelated]):
             self.assertIsNone(gh.existing_pr("agent/test", "main"))
 
+    def test_duplicate_matching_prs_fail_closed(self):
+        gh = GitHub("token", "example/safe-repo")
+        first = {"head": {"ref": "agent/test"}, "base": {"ref": "main"}, "state": "open", "draft": True}
+        second = {"head": {"ref": "agent/test"}, "base": {"ref": "main"}, "state": "open", "draft": True}
+        with patch.object(gh, "get", return_value=[first, second]):
+            with self.assertRaisesRegex(AgentError, "Ambiguous PR search"):
+                gh.existing_pr("agent/test", "main")
+
     def test_create_only_push_lease_is_enforced_by_git(self):
         # Real local Git remote: the lease allows an absent ref but must deny
         # any subsequent overwrite, including a fast-forward update.
