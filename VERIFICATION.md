@@ -7,19 +7,19 @@
 
 ## Latest verified baseline
 
-**Snapshot: 2026-10-15, before the documentation-only refresh.**
+**Verified baseline: integrated security fixes in `main`, PR #17.**
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`5c698720bc6de352d08e83b6d790fbeb9d14a757`](https://github.com/jsmlabs/github-engineering-agent/commit/5c698720bc6de352d08e83b6d790fbeb9d14a757) |
-| Offline workflow on that commit | [Run 38810284708](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38810284708): **completed / success** |
+| Authoritative `main` commit | [`45d49e3436cc53cf8cbc38df43463ba394d09bcd`](https://github.com/jsmlabs/github-engineering-agent/commit/45d49e3436cc53cf8cbc38df43463ba394d09bcd) |
+| Offline workflow on that commit | [Run 38815112621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38815112621): **completed / success** |
 | Matrix | **6/6 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **63 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Concrete test observation | Ubuntu/Python 3.13 job: **67 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
 | Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
 | Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
 | Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
 
-The snapshot SHA and run identify the **pre-documentation** implementation. A later documentation PR or merge must be evaluated on its own head SHA and required checks; do not transfer success between commits.
+The snapshot SHA and workflow identify the **last integrated `main`** before PR #18. PR #18's new capability boundaries are **not** established by the previous main-branch run and require independent head-sha testing and review.
 
 ## Recent change evidence
 
@@ -28,6 +28,9 @@ The snapshot SHA and run identify the **pre-documentation** implementation. A la
 | [#12 strict JSON](https://github.com/jsmlabs/github-engineering-agent/pull/12) | [38809280416](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809280416), **6/6 pass** | [38809470388](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809470388), **success** on `afb17a292c3e4979a1a77a6fbb431c69d51a9228` | Local state, API/model JSON and source JSON parsing regressions in the offline suite |
 | [#13 CI action pinning](https://github.com/jsmlabs/github-engineering-agent/pull/13) | [38809679328](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809679328), **6/6 pass** | [38809884465](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809884465), **success** on `e1f63c573ef30467cef54e801175818dd000595b` | SHA-pinned official GitHub Actions function in the configured matrix |
 | [#14 model/recovery hardening](https://github.com/jsmlabs/github-engineering-agent/pull/14) | [38810108472](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38810108472), **6/6 pass** | [38810284708](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38810284708), **success** on `5c698720bc6de352d08e83b6d790fbeb9d14a757` | Offline regressions for model output, outbound JSON and recovery handling |
+| [#15 documentation refresh](https://github.com/jsmlabs/github-engineering-agent/pull/15) | [38812066285](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38812066285), **6/6 pass** | [38812223896](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38812223896), **success** on `48eed2ab94909e0232937b3db3ed6351351a570e` | Documentation-only structure and navigation alongside unchanged source tests |
+| [#16 README visual refresh](https://github.com/jsmlabs/github-engineering-agent/pull/16) | [38813390691](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38813390691), **6/6 pass** | [38813621301](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38813621301), **success** on `1001bbf3390f171186d8feb4ebbaf49463530492` | Documentation-only presentation improvements |
+| [#17 JSON hardening](https://github.com/jsmlabs/github-engineering-agent/pull/17) | [38814929977](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38814929977), **6/6 pass** | [38815112621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38815112621), **success** on `45d49e3436cc53cf8cbc38df43463ba394d09bcd` | Offline regressions including overflowed numbers, Unicode validation and bounded state JSON |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
@@ -69,6 +72,10 @@ The default tests use temporary Git repositories and test doubles for network/mo
 | Verification gate development | Offline tests cover Docker flags, commit-bound reports, PASS/FAIL gate and mock publication/recovery | No real Docker daemon or full live provider workflow |
 
 Historic results are preserved as historical evidence, **not** as current measurements or independent proof of the latest SHA.
+
+## Unreleased engineering-capability validation
+
+Proposed PR #18 adds explicitly approved new files/directories and configuration/workflow edits (with workflow edits excluded from unreviewed `run`), expanded bounded changes, one model call per plan, a writable disposable verification workspace and opt-in review-ready PRs. The historic tests and workflow results above apply **only** to their listed commits, not automatically to these changes. The first actual CI result for the new head must be recorded after observation; authenticated provider and real Docker execution remain separate unverified capabilities.
 
 ## Remaining verification gaps
 

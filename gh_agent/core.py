@@ -20,15 +20,16 @@ class AgentError(Exception):
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SAFE_FILE = re.compile(r"^[a-zA-Z0-9_.@+/-]+$")
-ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".css", ".html", ".yml", ".yaml", ".toml", ".go", ".rs", ".java", ".sh"}
-PROTECTED_PARTS = {".git", ".github", ".vscode", ".idea", "node_modules", "vendor", "dist", "build", "__pycache__", ".venv", "venv", "secrets", "credentials"}
-PROTECTED_NAMES = {"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "poetry.lock", "uv.lock", ".env", ".gitignore", ".gitattributes", "dockerfile", "makefile", "license", "license.md", "catalog.yaml"}
-MAX_FILES = 5
-MAX_FILE_BYTES = 20_000
-MAX_TOTAL_BYTES = 55_000
-MAX_STATE_BYTES = 256_000
-MAX_ISSUE_CHARS = 6_000
-MAX_TREE_FILES = 1_000
+ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".css", ".html", ".yml", ".yaml", ".toml", ".go", ".rs", ".java", ".sh", ".txt", ".xml", ".ini", ".cfg", ".properties", ".sql", ".tf", ".gradle"}
+PROTECTED_PARTS = {".git", "node_modules", "vendor", "dist", "build", "__pycache__", ".venv", "venv", "secrets", "credentials"}
+PROTECTED_NAMES = {".env", "license", "license.md"}
+SPECIAL_FILES = {".gitignore", ".gitattributes", ".dockerignore", "Dockerfile", "Makefile"}
+MAX_FILES = 12
+MAX_FILE_BYTES = 32_000
+MAX_TOTAL_BYTES = 96_000
+MAX_STATE_BYTES = 512_000
+MAX_ISSUE_CHARS = 12_000
+MAX_DIFF_LINES = 1_600
 
 
 def require_repo(repo: str) -> str:
@@ -39,16 +40,20 @@ def require_repo(repo: str) -> str:
 
 def check_path(path: str) -> str:
     """Model paths are repository-relative POSIX paths, never URLs or glob patterns."""
-    if not isinstance(path, str) or not path or len(path) > 180 or not SAFE_FILE.fullmatch(path):
+    if not isinstance(path, str) or not path or len(path) > 240 or not SAFE_FILE.fullmatch(path):
         raise AgentError("Disallowed path syntax")
     p = PurePosixPath(path)
-    if p.is_absolute() or str(p) != path or len(p.parts) > 12 or any(part in {".", "..", ""} or part.startswith(".") for part in p.parts):
-        raise AgentError("Unsafe or hidden path")
+    if p.is_absolute() or str(p) != path or len(p.parts) > 20 or any(part in {".", "..", ""} for part in p.parts):
+        raise AgentError("Unsafe path")
+    workflow = (len(p.parts) == 3 and p.parts[:2] == (".github", "workflows")
+                and not p.name.startswith(".") and p.suffix.lower() in {".yml", ".yaml"})
+    if any(part.startswith(".") for part in p.parts) and not (workflow or path in SPECIAL_FILES):
+        raise AgentError("Hidden path is not explicitly supported")
     if any(part.lower() in PROTECTED_PARTS for part in p.parts):
         raise AgentError("Protected directory")
     if p.name.lower() in PROTECTED_NAMES or p.name.lower().endswith((".pem", ".key", ".p12", ".secret")):
         raise AgentError("Protected or secret-bearing file")
-    if p.suffix.lower() not in ALLOWED_EXTENSIONS:
+    if p.suffix.lower() not in ALLOWED_EXTENSIONS and path not in SPECIAL_FILES:
         raise AgentError("Extension is not allowed")
     return path
 
@@ -65,8 +70,10 @@ def guarded_file(checkout: Path, rel: str, *, allow_new: bool) -> Path:
         if current.is_symlink():
             raise AgentError("Symlink target not permitted")
     if not path.exists():
-        if not allow_new or not path.parent.is_dir():
-            raise AgentError("Untracked/new paths must reside in an existing directory")
+        if not allow_new:
+            raise AgentError("Expected existing regular file")
+        if any(parent.exists() and not parent.is_dir() for parent in path.parents if parent.is_relative_to(root)):
+            raise AgentError("Parent path is not a directory")
     elif not path.is_file() or not stat.S_ISREG(path.stat().st_mode):
         raise AgentError("Not a regular file")
     return path
@@ -157,23 +164,19 @@ def tracked_sources(checkout: Path) -> list[str]:
                 result.append(p)
         except (AgentError, OSError):
             continue
-    if len(result) > MAX_TREE_FILES:
-        raise AgentError("Too many candidate files; use a smaller repository")
     return result
 
 
 def validate_selection(checkout: Path, paths: list[str], tracked: set[str], allowed: set[str] | None = None) -> None:
     if (not isinstance(paths, list) or not (1 <= len(paths) <= MAX_FILES)
         or not all(isinstance(p, str) for p in paths) or len(set(paths)) != len(paths)):
-        raise AgentError("Select 1-5 distinct paths")
+        raise AgentError(f"Select 1-{MAX_FILES} distinct paths")
     if allowed is not None and not set(paths).issubset(allowed):
         raise AgentError("Model selected a file outside the operator-approved scope")
     for p in paths:
         file = guarded_file(checkout, p, allow_new=True)
         if p not in tracked and file.exists():
             raise AgentError("Cannot modify untracked files")
-        if p not in tracked and file.parent.resolve() != checkout.resolve() and not file.parent.exists():
-            raise AgentError("Cannot create new directory")
 
 
 def authorized_files(checkout: Path, paths: list[str] | None, tracked: set[str]) -> list[str]:

@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -37,15 +38,20 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
     cid_dir = tempfile.TemporaryDirectory(prefix="gh-engineer-cid-")
     try:
         cid = Path(cid_dir.name) / "cid"
-        # The checkout is read-only. The container has no network, capabilities
-        # or host credentials; a small temporary writable /tmp is the only scratch.
+        workspace = Path(cid_dir.name) / "work"
+        try:
+            shutil.copytree(checkout, workspace, symlinks=True)
+        except OSError as exc:
+            raise AgentError("Cannot prepare disposable verification workspace") from exc
+        # The operator's checkout stays untouched. Tests can write inside the
+        # disposable workspace, without network access or host credentials.
         cmd = [
             "docker", "run", "--rm", "--pull=never", "--cidfile", str(cid),
             "--network=none", "--read-only", "--cap-drop=ALL",
             "--security-opt=no-new-privileges", "--pids-limit=64",
-            "--memory=512m", "--cpus=1", "--user=65534:65534",
+            "--memory=512m", "--cpus=1", "--user", f"{os.getuid()}:{os.getgid()}",
             "--tmpfs=/tmp:rw,nosuid,noexec,size=64m",
-            "--mount", f"type=bind,source={checkout},target=/work,readonly",
+            "--mount", f"type=bind,source={workspace},target=/work",
             "--workdir=/work", "--env=HOME=/tmp", "--env=PYTHONDONTWRITEBYTECODE=1",
             image, *argv,
         ]
@@ -84,9 +90,11 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
                                    stderr=subprocess.DEVNULL, timeout=15, check=False)
                 except (OSError, subprocess.TimeoutExpired):
                     pass
-        return {"exit_code": result.returncode,
-                "stdout_excerpt": (Path(cid_dir.name) / "stdout").open("rb").read(2048).decode("utf-8", errors="replace"),
-                "stderr_excerpt": (Path(cid_dir.name) / "stderr").open("rb").read(2048).decode("utf-8", errors="replace")}
+        with (Path(cid_dir.name) / "stdout").open("rb") as out, \
+             (Path(cid_dir.name) / "stderr").open("rb") as err:
+            return {"exit_code": result.returncode,
+                    "stdout_excerpt": out.read(2048).decode("utf-8", errors="replace"),
+                    "stderr_excerpt": err.read(2048).decode("utf-8", errors="replace")}
     finally:
         cid_dir.cleanup()
 

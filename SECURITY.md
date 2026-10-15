@@ -3,7 +3,7 @@
 [← README](README.md) · [Architecture & recovery](docs/ARCHITECTURE.md) · [Verification evidence](VERIFICATION.md)
 
 > [!WARNING]
-> **Reference software, not a security certification.** The agent may upload selected source code to a model provider and push a draft PR to GitHub. A **draft is a real remote change**: its source is visible to repository readers and its creation may trigger CI or third-party automation. Operate only with explicit authorization, least-privilege credentials, and independent review.
+> **Reference software, not a security certification.** The agent may upload selected source code to a model provider and push a draft or review-ready PR to GitHub. A **pull request is a real remote change**: its source is visible to repository readers and its creation may trigger CI or third-party automation. Operate only with explicit authorization, least-privilege credentials, and independent review.
 
 ## Security at a glance
 
@@ -15,26 +15,26 @@
 | Model/API → proposal | Strict JSON decoding, allowed schemas/paths, SHA-256 source binding, size/syntax checks | Syntactically valid code may be unsafe or incorrect |
 | Proposal → local commit | Human-reviewed digest plus `--approve`, clean checkout, commit/blob and file-set checks | Local files/hashes are not signed or protected against a malicious host |
 | Local commit → remote branch | Separate `--approve-publish`, current issue/base checks, create-only Git push lease | Git and its helpers are trusted; concurrent changes and ambiguous network outcomes remain possible |
-| Remote branch → draft PR | Exact head/base and open-draft verification; conflicting or closed PR is rejected | Push and PR creation are not atomic; external CI may start |
+| Remote branch → PR | Exact head/base and expected draft/ready-state verification; conflicting or closed PR is rejected | Push and PR creation are not atomic; external CI may start |
 | Local Docker verification | Operator-selected digest-pinned image, resource/network/filesystem constraints | Docker daemon, host kernel and image provenance remain operator-trusted |
 
 ## Authorization and invariants
 
 | Operation | Required authorization | Maximum intended effect |
 | --- | --- | --- |
-| `plan` | `--allow-source-upload` and 1–5 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
+| `plan` | `--allow-source-upload` and 1–12 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
 | `review` | None | Print full proposed diff/digest, **no modification** |
 | `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
 | `verify` | Explicit pinned image and command | Execute operator-selected test in constrained Docker, write commit-bound verification report |
 | `status` | None | Inspect local state; `--remote` adds read-only remote lookups |
-| `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open draft PR** |
+| `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open PR (draft by default)** |
 | `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
 
-The agent **does not** merge, approve PR reviews, deploy, alter GitHub workflows, delete files, create unapproved files, execute model-proposed shell commands, or mutate arbitrary paths. Security controls are deterministic checks in application code, not guarantees provided by model instructions.
+The agent **does not** merge, approve PR reviews, deploy, delete files, create unapproved files, execute model-proposed shell commands, or mutate arbitrary paths. Security controls are deterministic checks in application code, not guarantees provided by model instructions.
 
 ## Input, data and repository controls
 
-**Scope.** Paths must be relative, permitted, non-hidden and explicitly allowlisted. Eligible source files must already be tracked, regular, UTF-8 and within the bounded sizes. Protected directories/files, symlinks, path escapes, new directories and unauthorized changes are rejected. Planned edits are complete replacement contents for at most five files. Only Python and JSON source receive built-in syntax parsing; other permitted formats need independently configured validators.
+**Scope.** GitHub Actions workflow changes require the reviewed `plan → review → apply` path and are rejected before side effects in high-trust `run`, because even a draft PR may trigger CI. All model-editable paths must be repository-relative and explicitly allowlisted by the operator. Existing tracked or new regular UTF-8 files, including new directories, lock/configuration files and explicitly named `.github/workflows/*.yml`/`.yaml`, are allowed within resource budgets. Secret-bearing paths, unknown hidden files, symlinks, path escapes and unapproved changes are rejected. Proposed edits are complete file replacements; deletions, moves and arbitrary commands remain unavailable.
 
 **JSON and model responses.** Proposal/receipt/verification records, remote API JSON, generated JSON source and structured model output reject duplicate object keys (including nested duplicates), non-finite constants, overflowed numbers and unpaired Unicode surrogates. Local state JSON reads are limited to 256,000 bytes. Malformed model items, unexpected message parts, explicit refusals and incomplete messages fail closed. The model has no tool-execution authority. These controls do not prove semantics or exclude all prompt-injection effects.
 
@@ -53,7 +53,7 @@ The agent **does not** merge, approve PR reviews, deploy, alter GitHub workflows
 
 ## Isolated verification is optional, not a universal sandbox
 
-The POSIX-host `verify` operation requires an operator-supplied image pinned by `sha256` digest and an explicit JSON argv array. It uses a preloaded image (`--pull=never`), read-only checkout mount and root filesystem, disabled container network, no Linux capabilities, `no-new-privileges`, non-root user, limited CPU/memory/PIDs and scratch space, and a bounded timeout.
+The POSIX-host `verify` operation requires an operator-supplied image pinned by `sha256` digest and an explicit JSON argv array. It uses a preloaded image (`--pull=never`), writable disposable checkout copy and read-only root filesystem, disabled container network, no Linux capabilities, `no-new-privileges`, host-UID-mapped container user, limited CPU/memory/PIDs and scratch space, and a bounded timeout.
 
 > [!CAUTION]
 > A Docker daemon with host-level privileges is a trusted dependency, **not** contained by these flags. Use a dedicated rootless/isolated worker and images from a vetted source. Native Windows Docker execution is not supported; the project's Windows **offline CI tests** are a different capability. Timeout cleanup is best effort: check for surviving containers.
