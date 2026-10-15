@@ -364,6 +364,14 @@ def run_auto(args) -> None:
     """Bounded autonomous draft PR path; all three capabilities explicitly opted in."""
     if not (args.allow_source_upload and args.approve_local and args.approve_publish):
         raise AgentError("Autonomous draft requires --allow-source-upload --approve-local --approve-publish")
+    image = getattr(args, "test_image", None)
+    command = getattr(args, "test_command_json", None)
+    if bool(image) != bool(command):
+        raise AgentError("run requires both --test-image and --test-command-json")
+    if not (image and command):
+        reason = getattr(args, "unverified_reason", None)
+        if not getattr(args, "approve_unverified", False) or not isinstance(reason, str) or not 12 <= len(reason.strip()) <= 300:
+            raise AgentError("run without tests requires --approve-unverified and --unverified-reason before planning")
     plan(args)
     apply(SimpleNamespace(checkout=args.checkout, proposal=args.output, approve=True,
                           expected_sha256=sha(Path(args.output).read_bytes())))
