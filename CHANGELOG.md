@@ -8,6 +8,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ### Security and input validation
 
+- Reject invalid Unicode on outbound API/model JSON paths with controlled errors before network access; add a regression test.
 - Harden shared JSON decoding against finite-syntax overflow (`1e999`) and unpaired Unicode surrogates; cap proposal/receipt/verification file reads at 256,000 bytes and add targeted regressions. Valid JSON and application schemas are unchanged.
 
 - **Unified strict JSON boundaries:** reject duplicate object keys, including nested duplicates, and non-standard `NaN`/`Infinity` constants in generated JSON source, model Structured Outputs, GitHub/OpenAI HTTP responses, and private proposal/receipt/verification records. Treat excessive JSON nesting as a controlled error. Consolidate the shared parser.
