@@ -4,6 +4,11 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Structured model-output validation
+
+- Fail closed on duplicate JSON object keys (including nested keys) and non-finite numeric constants in model-generated structured output before proposal validation.
+- Add malformed-response regression coverage; no CLI, proposal schema, version, or permission changes.
+
 ### Strict JSON source validation
 
 - Reject duplicate JSON object keys, including nested duplicates, and non-standard non-finite values (`NaN`, `Infinity`, `-Infinity`) before accepting generated JSON edits.
