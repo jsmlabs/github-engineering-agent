@@ -2,70 +2,76 @@
 
 # GitHub Engineering Agent
 
-**AI proposes. Deterministic controls decide. Humans authorize.**
+**From an issue to a reviewable draft PR — with explicit control at every step.**
 
-A minimal Python CLI that turns one GitHub issue into a bounded, inspectable code proposal and, after explicit approvals, a **draft pull request**.
+A lightweight Python CLI for scoped AI-generated edits, deterministic validation, local approval, and draft-only GitHub publication.
 
 [![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)
-![Package version 0.2.0](https://img.shields.io/badge/package-0.2.0-64748b)
-![Reference implementation](https://img.shields.io/badge/maturity-reference%20implementation-64748b)
+![Package metadata v0.2.0](https://img.shields.io/badge/package-0.2.0-64748b)
+![Reference implementation](https://img.shields.io/badge/maturity-reference-64748b)
 
-[Quick start](#quick-start) · [Workflow](#how-it-works) · [Commands](#command-reference) · [Safety](#safety-boundaries) · [Docs](#documentation)
+**`plan` → `review` → `apply` → `verify` → `publish`**
+
+[**Quick start**](#quick-start) · [**Workflow**](#workflow) · [**Commands**](#command-reference) · [**Safety**](#safety-model) · [**Documentation**](#documentation)
 
 </div>
 
 > [!IMPORTANT]
-> **Reference implementation, not production-validated automation.** The CLI can create a local commit and publish an **open draft PR**, but it cannot review, approve, merge, or deploy code. The default offline test suite does **not** exercise live OpenAI/GitHub operations or an actual Docker daemon. See [verification evidence](VERIFICATION.md).
+> **Reference implementation — not a production-validated autonomous engineer.** The agent can create an approved local commit and an **open draft pull request**. It does **not** approve reviews, merge, or deploy. Offline tests do not establish live OpenAI/GitHub compatibility, target-code correctness, or real Docker isolation. See [Verification](VERIFICATION.md).
 
-## What it does
+## At a glance
 
-| Stage | Operator control | Observable artifact |
+| 🔒 Explicit scope | 🧾 Verifiable changes | 🔀 Draft-only delivery |
 | :--- | :--- | :--- |
-| **Plan** one open issue and 1–5 explicitly approved tracked files | Explicit source-upload consent and exact file allowlist | Private proposal JSON, no working-tree changes |
-| **Review** proposed full-file replacements | Inspect unified diff and proposal SHA-256 | Decision to approve or stop |
-| **Apply** locally | `--approve` + exact `--expected-sha256` | New branch, Git commit, private receipt |
-| **Verify** optional target tests | Operator-supplied digest-pinned Docker image and command | Commit-bound PASS/FAIL record |
-| **Publish** a draft | `--approve-publish` + passing verification **or** explicit no-test exception | Create-only remote push and confirmed **open draft PR** |
+| One **open issue** and **1–5 existing tracked files** chosen by the operator. | Review a full diff and exact SHA-256 before authorizing a local commit. | A separate approval gates the create-only push and **open draft PR**. |
+| Model-generated text cannot expand permissions. | Verification is bound to a specific proposal and commit. | No automatic review approval, merge, or deployment. |
 
-No model-generated shell command is executed. GitHub workflow files, hidden paths, secrets, new files, deletions, unapproved paths, automatic merging, and deployment are outside this product's supported scope.
+**Choose your mode**
 
-## How it works
+| | **Reviewed workflow** · recommended | **`run`** · high-trust |
+| :--- | :--- | :--- |
+| Human inspects generated proposal before edits | **Yes** — `review` + exact-digest approval | **No** — permissions granted up front |
+| Operator-controlled file scope | Required | Required |
+| Testing before publication | PASS report, or explicit no-test exception | Same gate |
+| Maximum remote side effect | **Open draft PR** | **Open draft PR** |
+
+## Workflow
 
 ~~~mermaid
-flowchart LR
-    A["Open issue + approved tracked files"] --> B["plan"]
-    B --> C["review: full diff + SHA-256"]
-    C --> D{"Approve?"}
-    D -->|No| X["Stop"]
-    D -->|Yes| E["apply: local commit"]
-    E --> F["verify: optional isolated tests"]
-    F --> G{"Publication gate"}
-    G -->|PASS| H["publish: draft PR"]
-    G -->|No test record + explicit exception| H
-    G -->|FAIL / stale| Y["Blocked"]
-    H --> I["External review + CI"]
+flowchart TD
+    I["Open issue + approved files"] --> P["1. PLAN · Private proposal"]
+    P --> R["2. REVIEW · Diff + SHA-256"]
+    R --> A{"Approve exact proposal?"}
+    A -->|No| STOP["Stop · No local edits"]
+    A -->|Yes| L["3. APPLY · Local commit"]
+    L --> V["4. VERIFY · Operator-selected test"]
+    V --> G{"Publication gate"}
+    G -->|PASS| D["5. PUBLISH · Open draft PR"]
+    G -->|No test report + explicit exception| D
+    G -->|FAIL or stale| BLOCK["Stop · Publication blocked"]
+    D --> H["Independent human review + target CI"]
 ~~~
 
-**Recommended:** `plan → review → apply → verify → publish`. The opt-in `run` command combines stages **without pausing for proposal-specific human review**; it still requires distinct authorizations and a verification plan or explicit no-test exception.
+**Trust boundary:** The model only **proposes file contents**. The Python/Git layer enforces scope, approvals, validation and remote-state checks. The diagram shows the reviewed path; `run` skips the review pause, **not** the deterministic gates.
 
 ## Quick start
 
-### 1. Prepare an isolated checkout
+### 1. Prepare the environment
 
-You need Python **3.11+**, Git, a clean dedicated checkout of the **target** repository at its fetched default-branch commit, and an absolute private proposal path **outside** that checkout.
+You need **Python 3.11+**, **Git**, and a clean trusted checkout of the **target repository**, aligned with its fetched default-branch commit. Store private proposal files at an absolute path **outside that checkout**.
 
-Set credentials in your environment using your approved secret manager:
-
-| Credential | When needed | Minimum expected capability |
+| Credential | Used for | Requirements |
 | --- | --- | --- |
-| `GITHUB_TOKEN` | Reading issue/repository metadata and PR API | Issues **read** for planning; publishing also requires Contents **write** and Pull requests **write** |
-| Git push credential | Publishing the new branch | Separate authorized SSH identity or Git credential helper |
-| `OPENAI_API_KEY` | Planning | Access to a Responses API model supporting strict JSON-schema Structured Outputs |
+| `GITHUB_TOKEN` | Issue/repository/PR REST API | **Issues: read** for planning; **Contents: write** and **Pull requests: write** for publication |
+| Git credential | Branch push | Separately configured authorized SSH key or credential helper |
+| `OPENAI_API_KEY` | Structured model requests | A Responses API model supporting strict JSON-schema Structured Outputs |
 
-The Git `origin` fetch and push URLs must exactly identify `OWNER/REPO` and contain no embedded credentials. Avoid shared or untrusted worktrees and concurrent writers. **Classify issue/source data before permitting provider upload.**
+Use a trusted, isolated workspace. The target `origin` fetch/push URLs must identify the exact `OWNER/REPO`. Do not embed tokens in remote URLs, shell arguments or proposal files. **Review data sensitivity before authorizing source upload.**
 
-### 2. Install and run offline checks
+### 2. Install the CLI and check it offline
+
+Run from a checkout of **this agent repository**:
 
 ~~~bash
 python -m pip install .
@@ -73,11 +79,11 @@ python -m gh_agent --help
 python scripts/verify.py
 ~~~
 
-Run these from a checkout of **this** agent repository. The CLI can also be invoked as `gh-engineer` after installation. Runtime Python dependencies are limited to the standard library; package installation may need build tooling. `scripts/verify.py` runs compilation, offline tests and CLI help only.
+The installed entry point is also `gh-engineer`. The runtime uses Python's standard library; package installation may require build tooling. `scripts/verify.py` checks compilation, offline unit tests and CLI help — **not live services**.
 
-### 3. Plan and review
+### 3. Plan, inspect and approve
 
-Replace placeholders with a real **open issue**, existing tracked paths, and a supported model. The following commands use POSIX shell continuation; Windows users may place each command on one line.
+Replace the placeholders below with a real open issue, operator-approved **existing tracked** paths, an accessible model and private absolute paths.
 
 ~~~bash
 python -m gh_agent plan \
@@ -94,9 +100,7 @@ python -m gh_agent review \
   --proposal /private/issue-123.json
 ~~~
 
-`plan` makes two model requests on a successful path. It uploads issue text and selected source content only after `--allow-source-upload`, then exclusively creates a private schema-2 proposal file (mode `0600` where supported). It does not print the proposed source diff. `review` prints the **entire diff and proposal digest**; protect terminal logs.
-
-### 4. Approve and apply the exact proposal
+`plan` makes **two** model requests on a successful path and writes a private proposal (schema **2**) without printing the generated source diff. `review` prints the complete diff and the proposal file's SHA-256. Protect review transcripts.
 
 ~~~bash
 python -m gh_agent apply \
@@ -106,11 +110,11 @@ python -m gh_agent apply \
   --approve
 ~~~
 
-`apply` rechecks the clean base, authorized paths and content, then creates `agent/issue-<issue>-<base-sha-prefix>`, commits the approved replacements, validates committed Git blobs and exclusively writes `/private/issue-123.json.applied.json`. **A digest is not a signature** against someone who can alter both local proposal and receipt.
+`apply` creates a new local `agent/issue-<issue>-<base-sha-prefix>` branch and commit, validates the committed bytes, and writes a private `.applied.json` receipt. **The approval digest binds the reviewed proposal, but is not a digital signature against a malicious local host.**
 
-### 5. Verify, then publish
+### 4. Verify the commit and publish a draft
 
-`verify` runs only a command **you supply** in a trusted, preloaded digest-pinned image. It requires a POSIX host, a trusted isolated Docker daemon, and a read-only mount of the checkout; native Windows Docker verification is not supported.
+Use a trusted, **already available** digest-pinned Docker image with a test command **you choose**. Verification requires a trusted POSIX host and isolated Docker daemon; native Windows Docker verification is **unsupported**.
 
 ~~~bash
 python -m gh_agent verify \
@@ -126,31 +130,29 @@ python -m gh_agent publish \
   --approve-publish
 ~~~
 
-`verify` creates `/private/issue-123.json.verified.json` tied to the proposal SHA and commit. A recorded **FAIL or stale report always blocks publication**. If **no verification record exists**, `publish` can instead accept `--approve-unverified` together with a substantive `--unverified-reason` (12–300 characters); this exception does not override a failure.
+A commit-bound verification **PASS** allows publication. A recorded **FAIL** or stale report **always blocks** it. Publishing rechecks the issue, base SHA, files and remote branch; the push uses a **create-only lease** and the resulting **open draft PR** is verified.
 
-`publish` rechecks the issue timestamp, default branch, base commit, file set, committed bytes, remote refs and existing PR. It uses a **create-only Git push lease**, then verifies an **open draft PR** with the expected head. Remote push and PR creation are **not atomic**.
+<details>
+<summary><strong>When testing is unavailable: explicit no-test exception</strong></summary>
 
-## Command reference
+Only if **no verification report exists**, the operator can explicitly accept the risk of an unverified draft. A reason of **12–300 characters** is required; a known test failure cannot be overridden.
 
-| Command | Mode | Key required options / safeguards |
-| --- | --- | --- |
-| `plan` | Reads issue/source and writes proposal | `--repo`, `--issue`, `--checkout`, `--model`, `--allowed-file` (repeatable), `--output`, `--allow-source-upload` |
-| `review` | Read-only proposal/diff inspection | `--checkout`, `--proposal` |
-| `apply` | Local branch, file edits and commit | `--checkout`, `--proposal`, `--expected-sha256`, `--approve` |
-| `verify` | Operator-configured isolated test | `--checkout`, `--proposal`, `--image`, `--command-json`; optional `--timeout` (1–300 s, default 120) |
-| `status` | Read-only local recovery; optional remote lookup | `--checkout`, `--proposal`; optional `--remote` |
-| `publish` | New remote branch and draft PR | `--checkout`, `--proposal`, `--approve-publish`; existing PASS or explicitly justified no-test exception |
-| `run` | High-trust combined flow | Plan options plus `--approve-local`, `--approve-publish` and either test options or explicit no-test exception |
+~~~bash
+python -m gh_agent publish \
+  --checkout /absolute/target-checkout \
+  --proposal /private/issue-123.json \
+  --approve-publish \
+  --approve-unverified \
+  --unverified-reason "Trusted test image unavailable on this worker"
+~~~
 
-### Reviewed flow vs. high-trust `run`
+</details>
 
-| Property | Reviewed flow | `run` |
-| --- | --- | --- |
-| Stops for review of generated proposal | **Yes** | **No** |
-| Exact operator-approved file scope | Required | Required |
-| Explicit source/local/remote permissions | At each relevant step | All required up front |
-| Test configuration or no-test exception | Required before publishing | Required before planning |
-| Highest automatic remote effect | **Draft PR** | **Draft PR** |
+<details>
+<summary><strong>Advanced: `run` without proposal-specific human review</strong></summary>
+
+> [!WARNING]
+> `run` may commit and publish **unreviewed AI-generated changes** as a draft. Use it only with explicit source, local and remote authorizations, a constrained checkout and independent downstream review. It cannot merge or deploy.
 
 ~~~bash
 python -m gh_agent run \
@@ -159,32 +161,51 @@ python -m gh_agent run \
   --model YOUR_STRUCTURED_OUTPUT_MODEL \
   --allowed-file src/feature.py \
   --output /private/issue-123.json \
-  --allow-source-upload --approve-local --approve-publish \
+  --allow-source-upload \
+  --approve-local --approve-publish \
   --test-image registry.example/test-image@sha256:YOUR_64_HEX_DIGEST \
   --test-command-json '["python","-m","unittest","discover","-s","tests"]'
 ~~~
 
-> [!WARNING]
-> `run` may commit and publish **unreviewed model-generated changes as a draft**. Use it only in a tightly controlled, explicitly authorized environment with independent downstream code review. It never merges or deploys.
+Without both test options, `run` requires an explicit `--approve-unverified` and `--unverified-reason` **before planning**. It can stop after a partial local or remote side effect; inspect state before retrying.
 
-## Safety boundaries
+</details>
 
-| Area | Enforced limit or behavior |
+*The examples use POSIX shell line continuation (`\`). On Windows CMD, put each command on one line or use CMD-appropriate continuation. CLI usage is otherwise cross-platform except for the POSIX-only Docker verification step.*
+
+## Command reference
+
+| Command | What happens | Explicit control |
+| --- | --- | --- |
+| `plan` | Read one issue/allowed source; save private proposal | `--repo`, `--issue`, `--checkout`, `--model`, repeatable `--allowed-file`, `--output`, `--allow-source-upload` |
+| `review` | Display full diff + proposal digest; no mutation | `--checkout`, `--proposal` |
+| `apply` | Local branch, commit and receipt | `--checkout`, `--proposal`, `--approve`, `--expected-sha256` |
+| `verify` | Test exact commit in operator-configured Docker | `--checkout`, `--proposal`, `--image`, `--command-json`, optional `--timeout` |
+| `status` | Read-only local recovery, optional remote check | `--checkout`, `--proposal`, optional `--remote` |
+| `publish` | Create-only remote push and open draft PR | `--checkout`, `--proposal`, `--approve-publish` + PASS or explicit exception |
+| `run` | Approved combined path without review pause | Planning options, `--approve-local`, `--approve-publish`, test plan or explicit exception |
+
+For supported options, run `python -m gh_agent <command> --help`.
+
+## Safety model
+
+| Boundary | Enforced contract |
 | --- | --- |
-| Target files | 1–5 distinct, existing tracked, non-hidden UTF-8 files from an explicit allowlist |
-| Source/edit budget | 20,000 bytes/file; 55,000 total bytes; 400 changed lines; 85,000-byte proposal diff |
-| Repository/issue | At most 1,000 eligible tracked candidate files; one open issue, maximum 6,000-character body and required revision timestamp |
-| Source validation | Approved relative paths, symlink checks, original SHA-256, Python/JSON syntax parsing, secret heuristics, committed-blob comparison |
-| JSON boundaries | Duplicate keys and non-finite constants rejected across untrusted API/model/state JSON; unexpected model output parts fail closed |
-| Remote effects | Exact remote identity and refs; no overwrites; issue/base rechecks; expected **open draft PR** |
-| Verification | Operator-supplied pinned image and argv; constrained POSIX-host Docker invocation; missing tests require explicit exception |
-| Outside scope | Arbitrary model commands, new/deleted files, workflow edits, review approval, merge, deployment, automatic target-test discovery |
+| **Files** | 1–5 distinct, explicitly approved, existing tracked UTF-8 files; protected paths/symlinks rejected |
+| **Budgets** | 20,000 bytes per file; 55,000 total; 400 changed lines; 85,000-byte proposal diff |
+| **Inputs** | One open issue, bounded body (6,000 characters), required revision timestamp; up to 1,000 eligible tracked candidate files |
+| **Validation** | Original SHA-256, allowed paths, Python/JSON syntax, strict JSON parsing, source-secret heuristics, Git staged/committed blob checks |
+| **Model** | No execution of model-proposed commands; refuse unexpected/refused/incomplete structured responses |
+| **Remote** | Exact repo/ref identity, stale-state rechecks, collision refusal, open draft PR only |
+| **Verification** | Commit-bound record; explicit no-test exception only when there is no test report |
+| **Excluded** | Automatic PR approval, merge, deployment, workflow edits, arbitrary commands, new/deleted files |
 
-Checks are **not** proof of semantic correctness, complete secret detection, a safe Docker daemon, live API compatibility or production readiness. See [Security policy](SECURITY.md).
+> [!CAUTION]
+> Strict validation does **not** establish generated-code correctness, comprehensive DLP, safe Git/Docker dependencies, vendor compatibility or production readiness. Independent security review and target-project tests are required. Read the [security model](SECURITY.md) and [verification evidence](VERIFICATION.md).
 
-## Recovery
+## Recovery and troubleshooting
 
-Use read-only status before attempting to recover interrupted operations:
+Before retrying an interrupted action, inspect without changing state:
 
 ~~~bash
 python -m gh_agent status \
@@ -192,31 +213,45 @@ python -m gh_agent status \
   --proposal /private/issue-123.json --remote
 ~~~
 
-| What happened | Safe response |
+| Observation | Recommended response |
 | --- | --- |
-| Checkout dirty or base changed | Inspect Git state; preserve unrelated work; replan from a verified base |
-| Proposal SHA mismatch | Inspect the modified proposal, review again and require fresh explicit approval |
-| `LOCAL_APPLY_INCOMPLETE` | Inspect branch, working tree, commit and receipt; no automatic rollback |
-| Test record missing | Run operator-selected tests or explicitly justify a no-test exception |
-| Test failure or stale record | Stop publication; investigate rather than override |
-| Push timed out or PR request failed | Compare exact remote branch SHA and open PR head/base/draft state before retrying |
-| Closed PR, conflicting branch or incomplete PR search | Stop and reconcile manually; never reuse uncertain state |
+| Dirty checkout or stale base | Inspect local changes and remote history; preserve unrelated work and replan |
+| Proposal SHA mismatch | Review again and approve the **new exact digest** |
+| `LOCAL_APPLY_INCOMPLETE` | Inspect branch, worktree, commit and receipt; **no automatic rollback** |
+| Verification FAIL or stale record | Stop publication and investigate; do not override |
+| Remote push/PR outcome unknown | Verify exact remote branch SHA and PR head/base/draft state **before retrying** |
+| Closed PR, conflicting branch, incomplete search | Stop and manually reconcile |
 
-See [Architecture & recovery](docs/ARCHITECTURE.md) for state transitions and failure handling.
+Remote push and PR creation are **not atomic**; a pushed branch may exist without its PR. See [Architecture & recovery](docs/ARCHITECTURE.md#failure-and-recovery-matrix).
 
 ## Documentation
 
-| Document | Scope |
+| Guide | Contents |
 | --- | --- |
-| [Architecture & recovery](docs/ARCHITECTURE.md) | Component boundaries, state machine, local and remote failure recovery |
-| [Security](SECURITY.md) | Threat model, approvals, credentials, isolation, residual risk, incident response |
-| [Verification](VERIFICATION.md) | Commit-specific CI evidence, test reproduction, unverified capabilities |
-| [Changelog](CHANGELOG.md) | Unreleased hardening, package releases and compatibility notes |
+| [Architecture & recovery](docs/ARCHITECTURE.md) | Components, state transitions, artifact schemas and recovery |
+| [Security](SECURITY.md) | Threat boundaries, permissions, isolation, incident response |
+| [Verification](VERIFICATION.md) | Commit-specific CI results, offline evidence, live gaps |
+| [Changelog](CHANGELOG.md) | Unreleased improvements, package history and compatibility |
 
-**Implementation entry points:** [CLI](gh_agent/cli.py) · [core policy](gh_agent/core.py) · [API clients](gh_agent/services.py) · [verification](gh_agent/verification.py) · [offline tests](tests/test_agent.py) · [check runner](scripts/verify.py).
+**Source:** [CLI](gh_agent/cli.py) · [Policy & Git](gh_agent/core.py) · [HTTP & model](gh_agent/services.py) · [Docker verification](gh_agent/verification.py) · [Tests](tests/test_agent.py) · [Offline runner](scripts/verify.py).
 
-**Compatibility:** Package version `0.2.0` requires Python 3.11+. Current proposals/receipts use **schema 2**; verification reports use **schema 1**. Proposal/receipt schema 1 from v0.1.0 cannot be used with v0.2.0; create a new scoped plan. There is no automatic migration, job queue, hosted service, scheduling or merge/deployment workflow.
+**Compatibility:** Package metadata version **0.2.0**, Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
 
-**Background references (non-normative):** [AI Agent Execution Contracts](https://github.com/jsmlabs/chatgpt-context/blob/main/knowledge/ai-agent-execution-contracts.md) · [Agent Workflow Architect](https://github.com/jsmlabs/chatgpt-context/blob/main/prompts/agent-workflow-architect.md) · [Repository Engineering Execution](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/repository-engineering-execution.md) · [Verification Engineering](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/verification-engineering.md).
+<details>
+<summary><strong>Engineering references and upstream APIs</strong></summary>
 
-**Upstream APIs:** [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create) · [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses) · [GitHub REST](https://docs.github.com/en/rest/about-the-rest-api/api-versions). Revalidate supported models, authentication, API versions and policies before live use.
+**Non-normative context:** [AI Agent Execution Contracts](https://github.com/jsmlabs/chatgpt-context/blob/main/knowledge/ai-agent-execution-contracts.md) · [Agent Workflow Architect](https://github.com/jsmlabs/chatgpt-context/blob/main/prompts/agent-workflow-architect.md) · [Repository Engineering Execution](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/repository-engineering-execution.md) · [Verification Engineering](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/verification-engineering.md).
+
+**Upstream:** [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create) · [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses) · [GitHub REST](https://docs.github.com/en/rest/about-the-rest-api/api-versions). Revalidate API versions, model availability, permissions and data-handling policies before live use.
+
+</details>
+
+---
+
+<div align="center">
+
+**Scoped changes. Explicit consent. Verifiable draft delivery.**
+
+<sub>Reference implementation · No automatic merge or deployment</sub>
+
+</div>
