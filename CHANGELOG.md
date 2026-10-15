@@ -6,6 +6,13 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Unified strict JSON boundaries
+
+- Reject duplicate JSON keys (including nested keys) and non-finite numeric constants in saved proposal/receipt/verification records and GitHub/OpenAI HTTP responses.
+- Reuse one strict parser for API responses, model structured output, JSON source validation, and local state; handle excessive JSON nesting as a controlled validation error.
+- Add negative and positive regression tests; no changes to valid JSON formats, CLI, authorization, runtime dependencies, or package version.
+
+
 ### Repository input boundary
 
 - Reject non-string repository identifiers with a controlled `AgentError` before regex validation, preserving valid owner/name handling; add regression tests.

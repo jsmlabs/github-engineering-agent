@@ -7,6 +7,8 @@
 
 ## Security model
 
+Local proposal/receipt records, GitHub/OpenAI HTTP JSON, model structured outputs, and generated JSON source now share strict duplicate-key and non-finite-number rejection. This prevents ambiguous JSON decoding but is not authentication or semantic verification.
+
 The model proposes **data**, not executable authority. The trusted Python/Git layer enforces file selection, inputs, consent flags, revision checks, and observable tool outcomes. Repository source, issue text, model output and remote responses are treated as untrusted until checked at the relevant boundary.
 
 | Source or component | Threat | Enforced boundary | Residual risk |
