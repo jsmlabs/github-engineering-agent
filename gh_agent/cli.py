@@ -15,6 +15,7 @@ from .core import (
     sha, tracked_sources, validate_edits, validate_selection, authorized_files, validate_source_sensitivity, committed_blob, remote_branch_sha,
 )
 from .services import EDIT_SCHEMA, SELECT_SCHEMA, GitHub, Model
+from .verification import check_gate, verify_commit
 
 
 def outside_checkout(checkout: Path, output: Path) -> None:
@@ -199,6 +200,60 @@ def apply(args) -> None:
     print("No target-repository tests were executed. Review code and run trusted CI before publishing.")
 
 
+def verify(args) -> None:
+    checkout = Path(args.checkout).resolve(strict=True)
+    proposal = Path(args.proposal).resolve(strict=True)
+    outside_checkout(checkout, proposal)
+    record = load_json(proposal)
+    receipt = load_json(Path(str(proposal) + ".applied.json"))
+    if record.get("schema") != 2 or receipt.get("schema") != 2:
+        raise AgentError("Invalid proposal or receipt")
+    if any(record.get(k) != receipt.get(k) for k in ("repo", "issue", "base", "base_sha")):
+        raise AgentError("Proposal and receipt mismatch")
+    try:
+        argv = json.loads(args.command_json)
+    except (ValueError, TypeError) as exc:
+        raise AgentError("Expected JSON array for --command-json") from exc
+    report = verify_commit(checkout, proposal, record, receipt, args.image, argv, args.timeout)
+    print("VERIFICATION_" + report["outcome"], "commit", report["commit"])
+    if report["outcome"] != "PASS":
+        raise AgentError("Tests failed; inspect private verification report")
+
+
+def status(args) -> None:
+    """Local, read-only recovery snapshot; no implicit GitHub mutations."""
+    checkout = Path(args.checkout).resolve(strict=True)
+    proposal = Path(args.proposal).resolve(strict=True)
+    outside_checkout(checkout, proposal)
+    receipt_path = Path(str(proposal) + ".applied.json")
+    if not receipt_path.exists():
+        print("STATUS NO_APPLY_RECEIPT")
+        return
+    receipt = load_json(receipt_path)
+    head = run_git(checkout, "rev-parse", "HEAD")
+    branch = run_git(checkout, "branch", "--show-current")
+    clean = not bool(run_git(checkout, "status", "--porcelain", "--untracked-files=all"))
+    local_matches = (head == receipt.get("commit") and branch == receipt.get("branch") and clean)
+    print("STATUS", "LOCAL_MATCH" if local_matches else "LOCAL_MISMATCH")
+    print("RECORDED_COMMIT", receipt.get("commit", "(missing)"))
+    print("CURRENT_COMMIT", head)
+    print("BRANCH", branch)
+    if not local_matches:
+        print("Recovery requires manual reconciliation; no state was changed.")
+        return
+    try:
+        gate = check_gate(proposal, receipt, override=False, reason=None)
+    except AgentError as exc:
+        gate = "NOT_VERIFIED: " + str(exc)
+    print("VERIFICATION", gate)
+    if args.remote:
+        assert_checkout(checkout, receipt["repo"], receipt["base"], require_base=False)
+        remote = remote_branch_sha(checkout, receipt["branch"])
+        print("REMOTE_BRANCH", remote if remote is not None else "ABSENT")
+        if remote and remote != head:
+            print("REMOTE_MISMATCH - publication forbidden")
+
+
 def publish(args) -> None:
     if not args.approve_publish:
         raise AgentError("Remote mutations require --approve-publish")
@@ -239,6 +294,9 @@ def publish(args) -> None:
             raise AgentError("Worktree contents differ from proposal")
         if committed_blob(checkout, commit, edit["path"]) != edit["content"].encode("utf-8"):
             raise AgentError("Committed Git blob differs from approved content")
+    gate = check_gate(proposal_file, receipt,
+                      override=getattr(args, "approve_unverified", False),
+                      reason=getattr(args, "unverified_reason", None))
     gh = GitHub(os.environ.get("GITHUB_TOKEN", ""), record["repo"])
     if gh.metadata()["default_branch"] != record["base"]:
         raise AgentError("Remote default branch changed")
@@ -277,7 +335,7 @@ def publish(args) -> None:
         print("DRAFT_PR_ALREADY_EXISTS", existing.get("html_url", "(URL unavailable)"))
         return
     title = f"Agent proposal: resolve issue #{record['issue']}"
-    body = f"Draft automated proposal for #{record['issue']}.\n\nSummary (unverified): {str(record.get('summary', ''))[:300]}\n\nLocal checks: git diff --check PASS. Target tests NOT RUN. Security review NOT ASSESSED. Human review and CI required.\n\nNever merge based on this draft alone."
+    body = f"Draft automated proposal for #{record['issue']}.\n\nSummary (unverified): {str(record.get('summary', ''))[:300]}\n\nLocal checks: git diff --check PASS. Verification: {gate}. Security review NOT ASSESSED. Human review and CI required.\n\nNever merge based on this draft alone."
     try:
         gh.post("pulls", {"title": title, "head": receipt["branch"], "base": record["base"], "body": body, "draft": True})
     except AgentError:
@@ -298,7 +356,13 @@ def run_auto(args) -> None:
     plan(args)
     apply(SimpleNamespace(checkout=args.checkout, proposal=args.output, approve=True,
                           expected_sha256=sha(Path(args.output).read_bytes())))
-    publish(SimpleNamespace(checkout=args.checkout, proposal=args.output, approve_publish=True))
+    if getattr(args, "test_image", None) and getattr(args, "test_command_json", None):
+        verify(SimpleNamespace(checkout=args.checkout, proposal=args.output,
+                               image=args.test_image, command_json=args.test_command_json,
+                               timeout=args.test_timeout))
+    publish(SimpleNamespace(checkout=args.checkout, proposal=args.output, approve_publish=True,
+                            approve_unverified=getattr(args, "approve_unverified", False),
+                            unverified_reason=getattr(args, "unverified_reason", None)))
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -323,10 +387,24 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--approve", action="store_true", help="Explicitly authorize local edits and commit")
     p.add_argument("--expected-sha256", required=True, help="Exact proposal SHA256 printed by review")
     p.set_defaults(func=apply)
-    p = sub.add_parser("publish", help="Push exact local commit and create draft PR")
+    p = sub.add_parser("verify", help="Run explicitly configured tests in a constrained Docker container")
+    p.add_argument("--checkout", required=True)
+    p.add_argument("--proposal", required=True)
+    p.add_argument("--image", required=True, help="Preloaded trusted Docker image pinned by sha256")
+    p.add_argument("--command-json", required=True, help='JSON array, e.g. ["python","-m","unittest"]')
+    p.add_argument("--timeout", type=int, default=120)
+    p.set_defaults(func=verify)
+    p = sub.add_parser("status", help="Read-only local/optional remote recovery state")
+    p.add_argument("--checkout", required=True)
+    p.add_argument("--proposal", required=True)
+    p.add_argument("--remote", action="store_true")
+    p.set_defaults(func=status)
+    p = sub.add_parser("publish", help="Push exact verified commit and create draft PR")
     p.add_argument("--checkout", required=True)
     p.add_argument("--proposal", required=True)
     p.add_argument("--approve-publish", action="store_true", help="Explicitly authorize remote branch push and draft PR")
+    p.add_argument("--approve-unverified", action="store_true", help="Explicit exception ONLY when no tests were run")
+    p.add_argument("--unverified-reason", help="Mandatory auditable justification for unverified publication")
     p.set_defaults(func=publish)
     p = sub.add_parser("run", help="Opt-in autonomous issue-to-draft-PR flow (no merge or deploy)")
     p.add_argument("--repo", required=True)
@@ -338,6 +416,11 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--allowed-file", action="append", required=True, help="Explicit eligible tracked file path; repeat per file")
     p.add_argument("--approve-local", action="store_true")
     p.add_argument("--approve-publish", action="store_true")
+    p.add_argument("--test-image", help="Pinned Docker test image for verified run")
+    p.add_argument("--test-command-json", help="JSON array of test command arguments")
+    p.add_argument("--test-timeout", type=int, default=120)
+    p.add_argument("--approve-unverified", action="store_true")
+    p.add_argument("--unverified-reason")
     p.set_defaults(func=run_auto)
     return parser
 
