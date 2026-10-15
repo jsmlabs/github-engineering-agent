@@ -7,19 +7,19 @@
 
 ## Latest verified baseline
 
-**Verified baseline: merged PR #20 on `main`, 2026-10-15.**
+**Verified baseline: merged PR #21 on `main`, 2026-10-15.**
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`0e0c6ec5c431ad600138175d7ee032899df1c91e`](https://github.com/jsmlabs/github-engineering-agent/commit/0e0c6ec5c431ad600138175d7ee032899df1c91e) |
-| Offline workflow on that commit | [Run 38823441682](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38823441682): **completed / success** |
+| Authoritative `main` commit | [`d87eae27f0f4978b4f3e7075cc1810bf3a54f172`](https://github.com/jsmlabs/github-engineering-agent/commit/d87eae27f0f4978b4f3e7075cc1810bf3a54f172) |
+| Offline workflow on that commit | [Run 38824915815](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38824915815): **completed / success** |
 | Matrix | **7/7 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 plus Ubuntu/Python 3.12 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **79 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Concrete test observation | Ubuntu/Python 3.13 job: **83 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
 | Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
 | Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
 | Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
 
-The snapshot SHA and workflow identify the last verified merged baseline before this CLI UX change. New terminal command tests and smoke checks must be evaluated on their own exact commit; do not transfer success between commits.
+The snapshot SHA and workflow identify the last verified merged baseline before the new interactive-menu PR. Its additional menu regression tests and smoke checks must be evaluated on their own exact head and merge commits.
 
 ## Recent change evidence
 
@@ -34,6 +34,7 @@ The snapshot SHA and workflow identify the last verified merged baseline before 
 | [#18 expanded scope](https://github.com/jsmlabs/github-engineering-agent/pull/18) | [38820016938](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820016938), **6/6 pass** | [38820648522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820648522), **success** on `98a2139c4474be54fcdb3f462ebf8834e6c6cc69` | Offline 74-test suite includes new file, workflow-review gate, isolation and PR-readiness regressions |
 | [#19 type and transport hardening](https://github.com/jsmlabs/github-engineering-agent/pull/19) | [38821493237](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821493237), **6/6 pass** | [38821668140](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821668140), **success** on `00e5db16842be3034831cb1b7540b9507f76c2ed` | Offline regressions for exact verification exit-code types, issue number typing and disconnected API responses |
 | [#20 three-pass quality improvements](https://github.com/jsmlabs/github-engineering-agent/pull/20) | [38823292220](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38823292220), **7/7 pass** | [38823441682](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38823441682), **success** on `0e0c6ec5c431ad600138175d7ee032899df1c91e` | Offline 79-test suite across 7 OS/Python jobs including Ubuntu/Python 3.12 |
+| [#21 guided terminal UX](https://github.com/jsmlabs/github-engineering-agent/pull/21) | [38824736177](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38824736177), **7/7 pass** | [38824915815](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38824915815), **success** on `d87eae27f0f4978b4f3e7075cc1810bf3a54f172` | Offline 83-test suite plus CLI start/help smoke across seven jobs |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
