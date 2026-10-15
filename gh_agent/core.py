@@ -45,7 +45,8 @@ def check_path(path: str) -> str:
     p = PurePosixPath(path)
     if p.is_absolute() or str(p) != path or len(p.parts) > 20 or any(part in {".", "..", ""} for part in p.parts):
         raise AgentError("Unsafe path")
-    workflow = len(p.parts) == 3 and p.parts[:2] == (".github", "workflows") and p.suffix.lower() in {".yml", ".yaml"}
+    workflow = (len(p.parts) == 3 and p.parts[:2] == (".github", "workflows")
+                and not p.name.startswith(".") and p.suffix.lower() in {".yml", ".yaml"})
     if any(part.startswith(".") for part in p.parts) and not (workflow or path in SPECIAL_FILES):
         raise AgentError("Hidden path is not explicitly supported")
     if any(part.lower() in PROTECTED_PARTS for part in p.parts):

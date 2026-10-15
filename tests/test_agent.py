@@ -439,6 +439,43 @@ class AgentTest(unittest.TestCase):
             cli.publish(args)  # retry discovers existing PR; no second push or PR
         self.assertEqual(remote["push_count"], 1)
 
+    def test_ready_pr_creation_and_reconciliation(self):
+        private_json_write(self.planfile, self.proposal())
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        receipt = json.loads(Path(str(self.planfile) + ".applied.json").read_text())
+        remote = {"sha": None, "pr": None, "created": 0}
+        original_git = cli.run_git
+        def mock_git(checkout, *args, **kwargs):
+            if args[0] == "push":
+                remote["sha"] = receipt["commit"]
+                return ""
+            return original_git(checkout, *args, **kwargs)
+        def mock_ref(checkout, branch):
+            return self.base if branch == "main" else remote["sha"]
+        class MockGH:
+            def __init__(self, *args): pass
+            def metadata(self): return {"default_branch": "main"}
+            def issue(self, *args): return {"updated_at": "2026-10-15T00:00:00Z"}
+            def existing_pr(self, *args): return remote["pr"]
+            def post(self, route, data):
+                self_test.assertFalse(data["draft"])
+                remote["created"] += 1
+                remote["pr"] = {"state": "open", "draft": False,
+                                "head": {"sha": receipt["commit"]}, "html_url": "https://example.invalid/1"}
+        self_test = self
+        args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                  approve_publish=True, approve_unverified=True,
+                                  unverified_reason="Offline mocked publish has no executable target tests",
+                                  ready_for_review=True)
+        with patch.object(cli, "run_git", mock_git), patch.object(cli, "remote_branch_sha", mock_ref), patch.object(cli, "GitHub", MockGH):
+            cli.publish(args)
+            cli.publish(args)
+            args.ready_for_review = False
+            with self.assertRaisesRegex(AgentError, "unexpected review state"):
+                cli.publish(args)
+        self.assertEqual(remote["created"], 1)
+
     def test_exact_remote_branch_ref_rejects_suffix_ambiguity(self):
         with patch("gh_agent.core.run_git", return_value=self.base + "\trefs/heads/other/main"):
             with self.assertRaisesRegex(AgentError, "Unexpected remote branch response"):

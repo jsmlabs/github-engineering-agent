@@ -90,9 +90,11 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
                                    stderr=subprocess.DEVNULL, timeout=15, check=False)
                 except (OSError, subprocess.TimeoutExpired):
                     pass
-        return {"exit_code": result.returncode,
-                "stdout_excerpt": (Path(cid_dir.name) / "stdout").open("rb").read(2048).decode("utf-8", errors="replace"),
-                "stderr_excerpt": (Path(cid_dir.name) / "stderr").open("rb").read(2048).decode("utf-8", errors="replace")}
+        with (Path(cid_dir.name) / "stdout").open("rb") as out, \
+             (Path(cid_dir.name) / "stderr").open("rb") as err:
+            return {"exit_code": result.returncode,
+                    "stdout_excerpt": out.read(2048).decode("utf-8", errors="replace"),
+                    "stderr_excerpt": err.read(2048).decode("utf-8", errors="replace")}
     finally:
         cid_dir.cleanup()
 
