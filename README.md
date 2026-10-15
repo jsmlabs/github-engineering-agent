@@ -199,7 +199,7 @@ For supported options, run `python -m gh_agent <command> --help`.
 | **Validation** | Original SHA-256, allowed paths, Python/JSON syntax, strict JSON parsing (duplicate keys, overflowed numbers and malformed Unicode), source-secret heuristics, Git staged/committed blob checks |
 | **Model** | No execution of model-proposed commands; refuse unexpected/refused/incomplete structured responses |
 | **Remote** | Exact repo/ref identity, stale-state rechecks, collision refusal, draft by default or `--ready-for-review` |
-| **Verification** | Commit-bound record; explicit no-test exception only when there is no test report |
+| **Verification** | Commit-bound record and strictly typed numeric exit code; explicit no-test exception only when there is no test report |
 | **Excluded** | Automatic PR approval, merge, deployment, arbitrary model commands, file deletion and renames |
 
 > [!CAUTION]
