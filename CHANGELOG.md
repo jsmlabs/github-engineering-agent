@@ -6,6 +6,11 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Repository input boundary
+
+- Reject non-string repository identifiers with a controlled `AgentError` before regex validation, preserving valid owner/name handling; add regression tests.
+
+
 ### Repository metadata validation
 
 - Reject malformed GitHub repository identity fields with an explicit `AgentError` instead of an uncaught attribute exception. Add valid and malformed metadata regression tests.

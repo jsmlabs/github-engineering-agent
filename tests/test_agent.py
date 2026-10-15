@@ -148,6 +148,13 @@ class AgentTest(unittest.TestCase):
         self.assertIn("NO_APPLY_RECEIPT", output.getvalue())
         self.assertEqual(git(self.checkout, "status", "--porcelain"), "")
 
+    def test_repository_identifier_rejects_non_string_values(self):
+        from gh_agent.core import require_repo
+        for value in (None, 123, [], {}, True):
+            with self.subTest(value=value), self.assertRaisesRegex(AgentError, "Expected repository identifier"):
+                require_repo(value)
+        self.assertEqual(require_repo("example/safe-repo"), "example/safe-repo")
+
     def test_path_escape_and_protected(self):
         for p in ["../foo.py", ".env", ".github/workflows/ci.yml", "node_modules/a.js", "src/../../a.py", "/tmp/a.py", "src/.hidden/a.py", "credentials/a.py", "app.exe", "Dockerfile"]:
             with self.subTest(p=p), self.assertRaises(AgentError):
