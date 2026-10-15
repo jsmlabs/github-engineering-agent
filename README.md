@@ -1,58 +1,75 @@
 # GitHub Engineering Agent
 
-**Version 0.2.0 · Bounded, local, issue-to-draft-PR engineering agent**
+**A bounded, approval-driven CLI for turning GitHub issues into reviewable code changes and draft pull requests.**
 
-A standalone Python CLI for proposing and applying narrowly scoped changes to an *existing, trusted Git checkout* in response to a GitHub issue. It uses OpenAI Responses Structured Outputs for proposals, and deterministic Python/Git checks for path policy, source authorization, file integrity, syntax, state, and remote effects.
+[Getting started](#quick-start) · [CLI workflow](#choose-a-workflow) · [Safety model](#safety-and-limits) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Verification](VERIFICATION.md) · [Changelog](CHANGELOG.md)
 
-> **Assurance level:** locally tested reference implementation, **not production validated**. It is not an unattended general-purpose software engineer. Real OpenAI calls, GitHub authentication, network publishing, repository CI, security review, and deployment were **not** tested during development. It never merges or deploys.
+> [!IMPORTANT]
+> **v0.2.0 is a locally tested reference implementation, not a production-validated autonomous engineer.** It can propose edits and, with explicit authorization, commit and publish them as a **draft** pull request. It does **not** run target-project tests, merge, approve reviews, or deploy. Real OpenAI and GitHub end-to-end interactions have not been verified.
 
-## Capabilities and explicit boundaries
+## What it does
 
-| Command | Effect | Operator approval |
+The agent operates on **one open GitHub issue** in a **dedicated, clean checkout** of an existing repository. The operator selects up to five existing tracked files. The model proposes full-file replacements, while deterministic Python and Git checks enforce scope, source integrity, change budgets, and remote-state preconditions.
+
+```text
+Open issue + explicitly approved files
+                |
+             plan                 Read issue/source; write private proposal
+                |
+             review               Print complete diff + proposal SHA-256
+                |
+      inspect and approve         Human decision (recommended)
+                |
+             apply                Verify approved hash; local branch + commit
+                |
+      independent review/tests    Operator's responsibility
+                |
+            publish              Verify remote state; branch + draft PR
+                |
+       human review and CI        No automatic merge or deployment
+```
+
+| Command | Outcome | Authorization |
 | --- | --- | --- |
-| `plan` | Read one open issue and explicitly allowed tracked files; make 2 model requests; write a private JSON proposal | `--allow-source-upload` + at least one `--allowed-file` |
-| `review` | Validate clean base, source checksums and scope; display complete proposed diff | Read-only |
-| `apply` | Revalidate proposal, make a local branch and commit exactly the authorized files | `--approve` + SHA-256 of the inspected proposal |
-| `publish` | Reconcile remote SHA and issue version; push the exact commit; create/verify **draft** PR | `--approve-publish` |
-| `run` | Execute bounded `plan → apply → publish` without an inspection pause | `--allow-source-upload --approve-local --approve-publish` and explicit file scope |
+| `plan` | Private JSON proposal; **two** model requests | `--allow-source-upload`, explicit `--allowed-file` scope |
+| `review` | Full unified diff, exact proposal SHA-256; no mutation | None |
+| `apply` | New local branch, validated commit, private receipt | `--approve` and matching `--expected-sha256` |
+| `publish` | Create-only remote branch push, verified **draft** PR | `--approve-publish` |
+| `run` | Opt-in `plan → apply → publish` without an inspection pause | Source-upload, local-write and remote-publish approvals |
 
-The autonomous `run` command **is a deliberate high-trust mode**: it may publish AI-generated code as a draft PR without human inspection of the specific edit. Draft PR is *not* merge authorization, security approval or proof of code correctness. Prefer `plan → review → apply → publish` for normal use.
+**Recommended:** use `plan → review → apply → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
 
-No model-generated commands are executed. The program does not merge, approve reviews, deploy, inspect secrets, run arbitrary tests or alter workflows. Repository Git configuration, credential helpers, external code and issue descriptions can still be unsafe: run in an isolated checkout and review before trust-sensitive use.
+## Quick start
 
-## Prerequisites
+### 1. Prepare a trusted environment
 
-- Python **3.11+** and Git in `PATH`.
-- A **dedicated clean Git checkout** of the intended repository, on its default branch at the checked-out `origin/<default>` SHA. Fetch and inspect the remote manually first.
-- `origin` fetch **and** push URLs must point to the exact `https://github.com/OWNER/REPO[.git]` or supported GitHub SSH equivalent; no additional push URLs.
-- `GITHUB_TOKEN`: least-privileged repository token with Issues: read, and, for publishing, Contents: write and Pull requests: write; an existing secure Git credential helper or SSH identity for push.
-- `OPENAI_API_KEY`: an API credential. Choose a model supporting Responses `text.format` JSON-schema Structured Outputs and sufficient output context. Verify availability, data policies and prices yourself.
-- A secure local path **outside the target checkout** for the proposal JSON. It contains the full replacement text of selected files.
+- Python **3.11+**, Git in `PATH`, and a private location for proposal files **outside** the target checkout.
+- A clean, dedicated checkout on the target repository's **default branch**, at the fetched `origin/<default>` commit. The `origin` fetch and push URL must exactly identify the requested GitHub repository (HTTPS or supported GitHub SSH form); multiple push destinations are rejected.
+- `GITHUB_TOKEN`: repository-scoped GitHub credential with **Issues: read** for planning; publishing additionally needs **Contents: write** and **Pull requests: write**, plus separately configured Git push credentials (credential helper or SSH). GitHub repository policies may require further approval.
+- `OPENAI_API_KEY`: credential for a model compatible with the Responses API's strict JSON-schema Structured Outputs. Independently verify model access, data processing, pricing, and applicable organizational policies.
 
-Only **existing tracked UTF-8 files** may be authorized in v0.2.0. At most 5 files, at most 20 KB per file, 55 KB total, 400 changed lines, and an 85 KB textual diff. Unsafe paths, symlinks, excluded directories, secret-like names and suspected embedded credentials are rejected. These heuristics are **not comprehensive secret scanning** or a semantic security analyzer.
+Run in an isolated, trusted workspace. The tool does not sandbox Git, source content, credential helpers, or generated code. **Do not place tokens in Git remote URLs, proposals, or shell command arguments.**
 
-## Install
+### 2. Install and check the CLI
 
-From the extracted project directory:
+From this repository:
 
 ```bash
 python -m pip install --no-build-isolation .
-python -m gh_agent --help
+gh-engineer --help
 python scripts/verify.py
 ```
 
-Or run directly without installation: `python -m gh_agent --help`. The CLI has no external runtime Python dependencies.
+Or run without installing: `python -m gh_agent --help`. Runtime Python dependencies are limited to the standard library. The local verification script runs offline tests and smoke checks; it is **not** a live service test.
 
-Provide credentials using your operating system's supported secret management mechanisms or environment variables. **Never put a token into the proposal JSON, source code or a Git remote URL.**
+### 3. Plan and inspect (no repository mutation)
 
-## Recommended step-by-step workflow
-
-From a terminal with credentials available, and with a dedicated checkout already fetched and clean:
+Substitute a real open issue, an existing tracked file, an accessible model, and absolute paths:
 
 ```bash
 python -m gh_agent plan \
   --repo OWNER/REPO --issue 123 \
-  --checkout /absolute/path/to/trusted/checkout \
+  --checkout /absolute/path/to/checkout \
   --model YOUR_STRUCTURED_OUTPUT_MODEL \
   --allowed-file src/feature.py \
   --allowed-file tests/test_feature.py \
@@ -60,103 +77,110 @@ python -m gh_agent plan \
   --output /private/location/issue-123.json
 
 python -m gh_agent review \
-  --checkout /absolute/path/to/trusted/checkout \
+  --checkout /absolute/path/to/checkout \
   --proposal /private/location/issue-123.json
+```
 
-# Inspect full diff and policy effects first. Next step writes a local branch and commit:
+`plan` uploads the issue text and the selected source content to the configured model provider only after explicit consent. It writes the proposal with file mode `0600` (subject to filesystem semantics) and normally prints **paths and metadata only**. `review` displays the **full proposed source diff** in your terminal, plus its SHA-256 digest. Avoid forwarding terminal transcripts or the proposal JSON to untrusted services.
+
+### 4. Apply only the reviewed proposal
+
+```bash
 python -m gh_agent apply \
-  --checkout /absolute/path/to/trusted/checkout \
+  --checkout /absolute/path/to/checkout \
   --proposal /private/location/issue-123.json \
-  --expected-sha256 COPY_SHA256_FROM_REVIEW \
+  --expected-sha256 COPY_EXACT_SHA256_FROM_REVIEW \
   --approve
+```
 
-# Independently run the project's tests in a trusted/sandboxed environment,
-# inspect the commit and obtain any required review/approval before publishing.
+`apply` rechecks the clean checkout, base commit, authorized file set and content, creates a local `agent/issue-<number>-<base-sha-prefix>` branch, and commits the approved replacements. It writes `<proposal>.applied.json` outside the checkout. The reviewed digest binds ordinary edits to the specific proposal file; it is **not a cryptographic signature** against a local attacker controlling both proposal and receipt.
+
+**Before publication:** inspect the commit, run the target project's applicable tests in a trusted environment, and complete any required review. The agent does **not** perform those checks.
+
+### 5. Publish as a draft pull request
+
+```bash
 python -m gh_agent publish \
-  --checkout /absolute/path/to/trusted/checkout \
+  --checkout /absolute/path/to/checkout \
   --proposal /private/location/issue-123.json \
   --approve-publish
 ```
 
-`review` prints the exact proposal SHA-256 and the full proposed diff. Copy that digest into `apply --expected-sha256` after inspection; editing the proposal invalidates the approval. In deliberate `run` mode, the digest is computed automatically because the operator has explicitly accepted publication without per-proposal human inspection. `review` prints source text to your terminal; avoid log aggregation for sensitive projects. `plan` displays only paths and metadata by default (not a source diff). The proposal is created exclusively with mode `0600`, subject to filesystem semantics.
+`publish` checks the receipt and exact committed Git objects, issue update timestamp, default branch and current remote refs. It pushes the specific new branch using a **create-only lease**, then creates or verifies an **open draft PR** with the expected head commit. A closed PR, changed base, ambiguous search result or unexpected remote branch blocks publication.
 
-### Unattended-to-draft mode (opt-in)
+## Choose a workflow
+
+| | Reviewed workflow | Opt-in autonomous draft |
+| --- | --- | --- |
+| Sequence | `plan → review → apply → publish` | `run` |
+| Proposal-specific human inspection | **Yes** | **No** |
+| Allowed files | Operator-defined | Operator-defined |
+| Allowed remote effect | Draft PR | Draft PR |
+| Merge/deploy | Never | Never |
+| Suitable use | Normal operation | Isolated, low-risk experiments with external review gates |
+
+The **high-trust** alternative deliberately authorizes both local and remote effects up front:
 
 ```bash
 python -m gh_agent run \
   --repo OWNER/REPO --issue 123 \
-  --checkout /absolute/path/to/trusted/checkout \
+  --checkout /absolute/path/to/checkout \
   --model YOUR_STRUCTURED_OUTPUT_MODEL \
   --allowed-file src/feature.py \
   --output /private/location/issue-123.json \
   --allow-source-upload --approve-local --approve-publish
 ```
 
-All authorizations are operator-provided CLI flags. The repository URL, issue number and exact eligible files cannot be expanded by an issue body or model instruction. This does **not** ensure the edited code is safe or correct. Use only on isolated, low-risk scopes with required PR review and CI gates.
+Use `run` only if your process allows publishing **unreviewed AI-generated edits as drafts**. The agent may stop partway through after a commit or push; review its actual state before retrying.
 
-## Deterministic controls
+## Safety and limits
 
-1. **Repository identity:** compare `origin` URLs, default branch, local HEAD and clean working tree. Reject protected/hidden paths and symlinks.
-2. **Scope:** require repeatable `--allowed-file PATH`. The model sees only these path names and selected source files; any different selection or edit is rejected.
-3. **Privacy:** explicit data-upload consent; block common token/private-key patterns in allowed source, issue and generated output. This is a deny heuristic, *not* a guarantee of detecting all secrets.
-4. **Validation:** strict proposal format, original-source SHA-256, byte/diff budgets, Python `ast.parse`, JSON parsing, `git diff --check`, exact changed-path comparison, and exact committed Git blob bytes.
-5. **Binding:** proposal schema v2 includes operator-approved paths; manual apply requires the SHA-256 of the inspected proposal; the receipt records the SHA-256 of the file at commit time. A different proposal file is rejected before remote effects. This is **not a tamper-proof signature** against a local attacker who can rewrite both files.
-6. **Remote effects:** before publishing, verify exact remote ref names, the issue timestamp and base SHA. New remote branches use a create-only Git lease so concurrent branch creation cannot be overwritten; the base and issue are rechecked before PR creation. Reject ambiguous PR result pages and closed PR collisions; reconcile ambiguous push outcomes by reading remote refs. Require an **open draft** PR matching the expected commit.
-7. **Resource bounds:** at most two model requests, fixed per-request timeout and content limits, one issue, one bounded commit, no automatic network mutation retries, no merge/deploy capability.
+| Guard | Implemented contract |
+| --- | --- |
+| File scope | **1–5** distinct, explicitly authorized, **existing tracked** UTF-8 files |
+| Size limits | **20,000 bytes/file**, **55,000 bytes total**; up to **400 changed lines**, **85,000-byte proposal diff** |
+| Repository size | At most **1,000 eligible tracked source files**; allowed extensions only |
+| Issue input | One **open issue** (not a PR); bounded title/body; timestamp required |
+| Model execution | **Two requests** in `plan`; fixed request limits and timeouts; no model-suggested shell commands |
+| Validation | Exact paths, source SHA-256, proposed content, Python/JSON syntax, `git diff --check`, committed blob bytes |
+| Remote | Exact branch/repository identity, clean local state, no force-overwrite, issue/base recheck, open-draft-PR verification |
+| Explicitly denied | Merge, deployment, approval, workflow edits, automatic target tests, arbitrary command execution |
 
-### State and recovery
+Checks for common credentials, terminal-control characters and unsafe paths help reduce exposure, but **are not complete DLP, security review or code correctness checks**. Syntax validation is implemented for Python and JSON; other permitted formats need their own trusted validators. See [SECURITY.md](SECURITY.md) for trust boundaries and remaining risks.
 
-```text
-proposed → reviewed → authorized → local_commit
-       → remote_branch_verified → open_draft_pr_verified
-           ↘ failed | partial | unknown → manual reconciliation
-```
+## Recovery and common failures
 
-- Local apply errors preserve the new branch/worktree for inspection; there is **no destructive reset**.
-- If push times out, the agent checks the remote ref before deciding whether the effect occurred. An unresolved outcome requires manual review, not blind replay.
-- A closed PR using the same branch is a collision, not an existing successful draft. Incomplete PR search pages also fail closed.
-- Outdated base, updated issue, altered proposal or changed commit state blocks publish.
-- A successful draft PR does not imply passing project tests, adequate security review, CI, mergeability or production readiness.
+| Symptom | Safe next action |
+| --- | --- |
+| `Checkout must be completely clean` | Inspect `git status`; isolate existing changes before proceeding. Do not discard them. |
+| `Local base is not at the known origin/base commit` | Fetch and inspect the target branch manually; replan if the base changed. |
+| `Stale base revision` / updated issue | Regenerate a new plan against the current issue and checkout. |
+| SHA-256 mismatch | Re-run `review` and inspect the current file; never reuse an old digest blindly. |
+| `LOCAL_APPLY_INCOMPLETE` | Inspect current branch, worktree and commit state; **no automatic rollback** occurs. |
+| Remote collision or uncertain push | Inspect exact remote branch and PR head before any retry. No blind replay. |
+| PR was closed or search is incomplete | Resolve manually; the agent deliberately fails closed. |
+| HTTP/API failure | Check credentials, service availability and quota without logging secrets; live API compatibility is not verified. |
 
-## Files
+For state transitions and failure boundaries, read [Architecture and recovery](docs/ARCHITECTURE.md). A partially successful remote push **does not** imply that a PR exists, and a draft PR **does not** imply successful tests, mergeability or production readiness.
 
-- `gh_agent/core.py` - path policy, source checks, repository identity, proposal integrity, Git object verification.
-- `gh_agent/services.py` - bounded GitHub/OpenAI REST clients, JSON-schema proposals.
-- `gh_agent/cli.py` - `plan`, `review`, `apply`, `publish`, `run` control flow.
-- `tests/test_agent.py` - deterministic no-network tests with temporary repositories and mocked external services.
-- `scripts/verify.py` - reproducible local compile, CLI and test-suite checks.
-- `SECURITY.md` - threat model, limits, incident handling.
-- `CHANGELOG.md` - release changes and compatibility notes.
+## Project documentation
 
-## Verification
+| File | What it owns |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Components, trust boundaries, execution states, retry and recovery contracts |
+| [`SECURITY.md`](SECURITY.md) | Threat model, denied capabilities, residual risk and incident response |
+| [`VERIFICATION.md`](VERIFICATION.md) | Dated offline checks, observed evidence and validation gaps |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history and compatibility changes |
+| `gh_agent/core.py` | Git identity, path scope, source/proposal checks and Git-object validation |
+| `gh_agent/services.py` | Bounded GitHub/OpenAI HTTPS clients and response parsing |
+| `gh_agent/cli.py` | Command-line approvals and plan/review/apply/publish/run orchestration |
+| `tests/test_agent.py` | Offline deterministic tests with temporary repositories and mocked services |
+| `scripts/verify.py` | Reproducible local verification entry point |
 
-```bash
-python scripts/verify.py
-```
+## Compatibility and provenance
 
-Runs Python compilation, all unit tests and CLI smoke checks. Tests are local/fixture-based; the test suite does not contact a real GitHub repository or OpenAI account. Do not represent successful offline checks as operational validation of a deployed agent.
+**v0.2.0 uses proposal schema 2.** v0.1.0/schema-1 proposals and receipts are **not** compatible. Recreate proposals with explicit file authorization. No in-place migration is provided. This is a standalone CLI, not a background agent or hosted service; it has no job queue, scheduling, target test runner, proof of business-invariant preservation, or automatic merge/deploy support.
 
-## Compatibility and known limitations
+Architecture and engineering conventions are informed by the separately maintained [AI Agent Execution Contracts](https://github.com/jsmlabs/chatgpt-context/blob/main/knowledge/ai-agent-execution-contracts.md), [Agent Workflow Architect](https://github.com/jsmlabs/chatgpt-context/blob/main/prompts/agent-workflow-architect.md), [Repository Engineering Execution](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/repository-engineering-execution.md), and [Verification Engineering](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/verification-engineering.md). Implementation-specific evidence takes precedence over aspirational specifications.
 
-- **Proposal schema 2:** proposals from v0.1.0 (`schema: 1`) are intentionally **not accepted** by `apply` or `publish`. Replan under explicit file scope. Receipts are not migrated.
-- No sandbox execution of generated code, test runner, code reviewer, background task scheduler, webhook receiver, persistence database, cryptographic approval log or distributed worker queue.
-- No semantic proof that edits respect business invariants. Scope and syntax checks are necessary but insufficient.
-- Git hooks are suppressed where supported, but an untrusted Git installation, credential helper, config filters, external tooling or locally competing writer remains an operational risk. Do not run in an untrusted worktree.
-- File operations are not transactional and a crash between commit and receipt can require manual recovery.
-- Source/issue heuristics cannot identify every private value; users must independently review data-sharing permissions and applicable privacy rules. ASCII terminal-control characters are rejected, but rendered Markdown and model-generated prose still require independent review.
-- Parsing Python and JSON is not executing target tests. For JS, TS, YAML and other languages, syntax validation requires trusted external tooling not included here.
-- Real GitHub response semantics, rate limits, configured branch protection and model behavior must be revalidated against live services prior to production use. Test coverage includes one local bare Git server for create-only push-lease behavior, not real GitHub PR creation.
-
-## Release verification record
-
-See [VERIFICATION.md](VERIFICATION.md) for the exact local checks, observed environment, evidence scope, and what has **not** been verified.
-
-## Context and API references
-
-- [`AI Agent Execution Contracts`](https://github.com/jsmlabs/chatgpt-context/blob/main/knowledge/ai-agent-execution-contracts.md)
-- [`Agent Workflow Architect`](https://github.com/jsmlabs/chatgpt-context/blob/main/prompts/agent-workflow-architect.md)
-- [`Repository Engineering Execution`](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/repository-engineering-execution.md)
-- [`Verification Engineering`](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/verification-engineering.md)
-- [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create)
-- [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)
-- [GitHub REST API versioning](https://docs.github.com/en/rest/about-the-rest-api/api-versions)
+API reference: [OpenAI Responses](https://developers.openai.com/api/reference/resources/responses/methods/create), [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses), [GitHub REST](https://docs.github.com/en/rest/about-the-rest-api/api-versions). Revalidate vendor behavior, API versions, authentication, model capabilities and policies before live use.

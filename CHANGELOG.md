@@ -1,22 +1,37 @@
 # Changelog
 
+Notable changes are grouped by release. The package uses its declared version in `pyproject.toml`; documentation-only edits do not independently increment the application version.
+
+## Unreleased
+
+### Documentation
+
+- Reorganized the README around onboarding, **reviewed vs. high-trust execution**, authorization flags, state checks, and recovery.
+- Added a focused [architecture and recovery guide](docs/ARCHITECTURE.md) covering model/deterministic boundaries, side effects and partial outcomes.
+- Reworked [security guidance](SECURITY.md) with a threat-boundary matrix, least-privilege setup and incident handling.
+- Clarified in [verification evidence](VERIFICATION.md) what was tested offline and what remains unverified in live GitHub/OpenAI integrations.
+- **No CLI, source-code, proposal-format or package-version change.**
+
 ## 0.2.0 - 2026-10-15
 
-- Require operator-defined `--allowed-file` boundaries on planning and autonomous execution; eliminate repository-wide implicit file scope.
-- Bind manual `apply` approval to the exact SHA-256 printed by the `review` command (autonomous `run` remains separately opt-in).
-- Require exact remote-ref matches, fail closed on incomplete PR search pages, and recheck issue/base before PR creation.
-- Use a create-only Git lease to reject concurrent branch creation without force-overwriting remote state.
-- Block ASCII terminal-control payloads from issue/source/generated content; add local bare-Git push-lease and race-condition regression coverage.
-- Add `review` command for full proposal diff, separate from `plan` output.
-- Prevent automatic source diff printing in `plan` logs.
-- Add conservative credential-pattern checks for issue text, selected source and generated edits.
-- Parse generated Python and JSON before local mutation; reject obvious syntax errors.
-- Bind apply receipts to the original proposal SHA-256 and verify exact committed Git blob bytes.
-- Reject closed pull requests when reconciling a draft PR publication.
-- Require an issue update timestamp and strengthen input validation.
-- Extend offline unit/integration-style tests including opt-in execution boundaries, tampering, suspicious input and mocked publishing.
-- Explicit **incompatible proposal format**: version 0.1.0 schema 1 records cannot be applied or published; regenerate under schema 2.
+### Scope and approvals
+
+- Required explicit `--allowed-file` boundaries for planning and autonomous execution; removed implicit repository-wide file selection.
+- Bound manual `apply` authorization to the SHA-256 printed by `review`; kept opt-in `run` as a separate high-trust mode.
+- Added complete proposal diff inspection with `review` and prevented automatic source-diff printing during `plan`.
+
+### Integrity and safety
+
+- Tightened exact remote-ref checks, rejected incomplete PR results and closed PR collisions, and rechecked issue/base before PR creation.
+- Used a create-only Git push lease to reject concurrent remote branch creation without overwriting another commit.
+- Added conservative credential and terminal-control checks for issue text, selected source and generated edits.
+- Added Python/JSON syntax checks, applied-proposal SHA-256 receipts and exact committed Git blob verification.
+- Strengthened issue timestamps, input validation and offline tests for race conditions, tampering, remote effects and explicit consent.
+
+### Breaking compatibility
+
+- **Proposal schema 2 is incompatible with v0.1.0 schema 1.** Previously generated proposals/receipts cannot be applied or published by v0.2.0; create a fresh plan with explicit file scope.
 
 ## 0.1.0 - 2026-10-15
 
-- Initial bounded `plan`, `apply`, `publish`, `run` issue-to-draft-PR reference implementation.
+- Initial standalone, bounded `plan`, `apply`, `publish` and `run` issue-to-draft-PR reference implementation.
