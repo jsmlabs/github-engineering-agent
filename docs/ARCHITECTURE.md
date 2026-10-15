@@ -55,6 +55,8 @@ flowchart LR
     I --> J["Independent human review + CI"]
 ~~~
 
+The user-friendly CLI entrypoint displays a short home screen with no subcommand. `guide` prints a five-step review-first walkthrough, `doctor` inspects local prerequisites without network requests, and `next` checks the saved proposal/receipt/report and local commit before suggesting a step. All four are read-only; `--checkout` defaults to the current working directory, and existing explicit paths remain supported.
+
 The operator can call `status` at any time to inspect local recovery state (and optionally the remote) **without mutation**. `run` calls `plan → apply → verify (if configured) → publish` after up-front permission checks; it **skips** the proposal-specific `review` pause. As a deterministic preflight boundary, `run` rejects any explicitly selected `.github/workflows/` file; workflow changes require manual diff review and exact-digest approval.
 
 ### 1. `plan` - proposal, no checkout mutation
