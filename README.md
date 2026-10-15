@@ -2,7 +2,7 @@
 
 **A bounded, approval-driven CLI for turning GitHub issues into reviewable code changes and draft pull requests.**
 
-[Getting started](#quick-start) · [CLI workflow](#choose-a-workflow) · [Safety model](#safety-and-limits) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Verification](VERIFICATION.md) · [Changelog](CHANGELOG.md)
+[Quick start](#quick-start) · [Workflow](#choose-a-workflow) · [Safety](#safety-and-limits) · [Recovery](#recovery-and-common-failures) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Evidence](VERIFICATION.md) · [Changelog](CHANGELOG.md)
 
 > [!IMPORTANT]
 > **v0.2.0 is a locally tested reference implementation, not a production-validated autonomous engineer.** It can propose edits and, with explicit authorization, commit and publish them as a **draft** pull request. The optional verification command executes only an operator-configured test inside a constrained Docker container; it does **not** merge, approve reviews, or deploy. Real OpenAI and GitHub end-to-end interactions have not been verified.
@@ -22,9 +22,11 @@ Open issue + explicitly approved files
                 |
              apply                Verify approved hash; local branch + commit
                 |
-      independent review/tests    Operator's responsibility
+       independent review         Operator's responsibility
                 |
-            verify               Commit-bound isolated tests (or explicit exception)
+            verify               Optional isolated, commit-bound test execution
+                |
+         publication gate         PASS or explicit unverified exception
                 |
             publish              Verify remote state; branch + draft PR
                 |
@@ -39,7 +41,7 @@ Open issue + explicitly approved files
 | `verify` | Container-isolated, commit-bound test record | Pinned image and explicit command |
 | `status` | Read-only local recovery view; optional remote ref check | None |
 | `publish` | Create-only push, verified **draft** PR after passing gate | `--approve-publish`, verification or explicit exception |
-| `run` | Opt-in `plan → apply → publish` without an inspection pause | Source-upload, local-write and remote-publish approvals |
+| `run` | Opt-in `plan → apply → verify/gate → publish` without an inspection pause | Source-upload, local-write and remote-publish approvals; test configuration or explicit exception |
 
 **Recommended:** use `plan → review → apply → verify → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
 
@@ -99,11 +101,11 @@ python -m gh_agent apply \
 
 `apply` rechecks the clean checkout, base commit, authorized file set and content, creates a local `agent/issue-<number>-<base-sha-prefix>` branch, and commits the approved replacements. It writes `<proposal>.applied.json` outside the checkout. The reviewed digest binds ordinary edits to the specific proposal file; it is **not a cryptographic signature** against a local attacker controlling both proposal and receipt.
 
-**Before publication:** inspect the commit, run the target project's applicable tests in a trusted environment, and complete any required review. The agent does **not** perform those checks.
+**Before publication:** inspect the commit and arrange independent review. The optional `verify` command can run an operator-selected test command in a constrained Docker container on supported POSIX hosts; the agent does **not** automatically select the target project's full test suite or determine semantic correctness.
 
 ### 5. Verify the exact commit before publishing
 
-Use a trusted, preloaded OCI/Docker image pinned by its SHA-256 digest. The operator supplies an explicit argv array. Docker is an external trusted dependency: run with a trusted rootless/isolated daemon, not a shared privileged host daemon. The checkout is mounted read-only; the container has no network, Linux capabilities, or ambient credentials, with memory/CPU/PID and time limits. Docker is required for live test execution, not for the offline CLI tests.
+Use a trusted, preloaded OCI/Docker image pinned by its SHA-256 digest. The operator supplies an explicit argv array. Docker is an external trusted dependency: run with a trusted rootless/isolated daemon, not a shared privileged host daemon. The checkout is mounted read-only; the container has no network or Linux capabilities, and receives no application credentials by design, with memory/CPU/PID and time limits. The runner currently requires a POSIX host path (native Windows Docker verification is unsupported). Docker is required for isolated test execution, not for the offline CLI tests.
 
 ```bash
 python -m gh_agent verify \
@@ -146,7 +148,7 @@ python -m gh_agent publish --checkout /absolute/path/to/checkout \
 
 | | Reviewed workflow | Opt-in autonomous draft |
 | --- | --- | --- |
-| Sequence | `plan → review → apply → publish` | `run` |
+| Sequence | `plan → review → apply → verify → publish` | `run` (verification configured or explicit exception) |
 | Proposal-specific human inspection | **Yes** | **No** |
 | Allowed files | Operator-defined | Operator-defined |
 | Allowed remote effect | Draft PR | Draft PR |
@@ -180,7 +182,7 @@ Use `run` only if your process allows publishing **unreviewed AI-generated edits
 | Model execution | **Two requests** in `plan`; fixed request limits and timeouts; no model-suggested shell commands |
 | Validation | Exact paths, source SHA-256, proposed content, Python/JSON syntax, `git diff --check`, committed blob bytes |
 | Remote | Exact branch/repository identity, clean local state, no force-overwrite, issue/base recheck, open-draft-PR verification |
-| Explicitly denied | Merge, deployment, approval, workflow edits, automatic target tests, arbitrary command execution |
+| Explicitly denied | Merge, deployment, review approval, workflow edits, model-proposed shell commands; tests require an operator-supplied command |
 
 Checks for common credentials, terminal-control characters and unsafe paths help reduce exposure, but **are not complete DLP, security review or code correctness checks**. Syntax validation is implemented for Python and JSON; other permitted formats need their own trusted validators. See [SECURITY.md](SECURITY.md) for trust boundaries and remaining risks.
 

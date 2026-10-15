@@ -18,8 +18,12 @@ Operator (CLI flags + separate credentials)
           |    * Git blob / commit verification
           |
           +-- gh_agent/services.py
-                 * GitHub issue / metadata / PR API
-                 * OpenAI Responses API
+          |      * GitHub issue / metadata / PR API
+          |      * OpenAI Responses API
+          |
+          +-- gh_agent/verification.py
+                 * operator-configured Docker tests
+                 * commit-bound private verification record
           |
      trusted Git executable ----> checked-out target repository
           |                         and GitHub remote
@@ -39,6 +43,7 @@ Operator (CLI flags + separate credentials)
 - **`core.py`** contains repository identity checks, path restrictions, read limits, sensitive-content heuristics, SHA-256 utilities, syntax checks and Git verification.
 - **`services.py`** constrains HTTPS hosts, request/response sizes and timeouts. Redirects and automatic network retries are rejected. It parses GitHub issue/PR state and Responses Structured Outputs.
 - **`cli.py`** orchestrates consent boundaries and state checks; it does not execute model-supplied commands.
+- **`verification.py`** implements optional POSIX-host Docker execution, bounded output capture, commit-bound verification records and the publication gate. Docker daemon and test image are operator-trusted dependencies.
 
 ## Operation contracts
 
@@ -63,15 +68,19 @@ Require `--approve` and a SHA-256 matching the exact proposal bytes. Revalidate 
 
 An error **after** branch creation may leave the branch, modified files or a commit behind. The CLI prints `LOCAL_APPLY_INCOMPLETE` rather than destroying state.
 
+### `verify` and `status`: bounded verification and read-only recovery
+
+`verify` accepts an explicitly configured digest-pinned Docker image and argv list, runs the command on a read-only checkout mount in a constrained container, and records the exact local commit and outcome outside the checkout. It currently requires a POSIX host; Docker remains a trusted dependency. `status` reports local recovery state and can inspect the remote ref when requested, without performing mutations. A recorded test failure cannot be overridden by an unverified-publication exception.
+
 ### `publish`: remote mutation boundary
 
-Require `--approve-publish`, the matching proposal and receipt, a clean checkout at the recorded commit, and matching committed bytes and changed-file set. Recheck the issue timestamp, remote default branch and base SHA. If the branch does not exist, push using a **create-only lease**; never overwrite another remote branch. Re-read the exact branch SHA, recheck issue and base, then create or verify an **open draft PR** whose head is the expected commit.
+Require `--approve-publish`, a matching commit-bound PASS verification record (or an explicit justified exception when no test report exists), the matching proposal and receipt, a clean checkout at the recorded commit, and matching committed bytes and changed-file set. Recheck the issue timestamp, remote default branch and base SHA. If the branch does not exist, push using a **create-only lease**; never overwrite another remote branch. Re-read the exact branch SHA, recheck issue and base, then create or verify an **open draft PR** whose head is the expected commit.
 
 Publication is **not transactional**: the remote branch may exist without a PR if a later step fails. HTTP timeouts are not evidence of failure or success.
 
 ### `run`: combined high-trust mode
 
-Requires all three explicit flags (`--allow-source-upload`, `--approve-local`, `--approve-publish`) and at least one `--allowed-file`. This **skips interactive review**, so the operator accepts a draft PR being created from model-generated edits they have not inspected. It still performs the deterministic checks described above. It never merges or deploys.
+Requires all three explicit flags (`--allow-source-upload`, `--approve-local`, `--approve-publish`) and at least one `--allowed-file`. Before planning, it also requires test-image/test-command configuration or an explicit justified unverified exception. This **skips interactive review**, so the operator accepts a draft PR being created from model-generated edits they have not inspected. It still performs the deterministic checks described above. It never merges or deploys.
 
 ## State and recovery
 
@@ -107,7 +116,7 @@ Terminal outcomes can be **success**, **failure before effect**, or **partial/un
 
 - Up to **5** existing tracked UTF-8 files; **20,000 bytes/file** and **55,000 bytes total** for selected source/edits; **400 changed lines** and **85,000 diff bytes**.
 - Up to **1,000 eligible tracked files** in the candidate repository listing, one open issue, bounded title/body, and two OpenAI model calls on successful planning.
-- No new files, deletes, unapproved paths, hidden paths, GitHub workflow edits, arbitrary model commands, target test execution, merge or deployment.
+- No new files, deletes, unapproved paths, hidden paths, GitHub workflow edits, arbitrary model commands, automatic test selection, merge or deployment. Operator-selected isolated tests are supported by `verify`.
 - Python/JSON syntax parsing is implemented. Source-content credential checks are heuristic; no full DLP, static analysis, sandbox or semantic verification.
 - There is no resumable job store, queue, background scheduler or atomic cross-service transaction. The operator manages partial state.
 

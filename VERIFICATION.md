@@ -46,9 +46,9 @@ This bounded pilot addresses malformed GitHub pull-request search data. Prior to
 
 No new Python dependency, version change, schema change or automatic merge/deployment was introduced. The test results refer to the changed source tree, not to the original v0.2.0 release.
 
-## Combined PR #2/#3 validation (pending current-head CI)
+## Integrated main branch CI (2026-10-15)
 
-The malformed-model-content hardening and two unit regression tests from PR #3 are integrated into this development branch alongside the verification and recovery controls. The combined source requires current-head CI validation; no live Docker isolation or authenticated external API end-to-end test has been executed here. Do not infer success from earlier branch commits.
+The model-response hardening from PR #3 and the verification/recovery changes were integrated through PR #2 into `main` at `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a`. GitHub Actions workflow run [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), triggered by that commit, reports **completed / success** for the offline verification workflow. This establishes the workflow's recorded outcome for that SHA only, not a live Docker verification, end-to-end authenticated GitHub/OpenAI operation, or production readiness.
 
 ## Explicitly not verified
 
@@ -87,8 +87,8 @@ Reference documents: [Security](SECURITY.md), [Architecture](docs/ARCHITECTURE.m
 
 The Docker runner now checks actual newline and carriage-return characters in the checkout mount path, not literal backslash sequences. A regression test asserts that such paths and comma-containing paths are rejected before subprocess execution. The updated PR head must pass its own CI checks; earlier green CI runs apply to previous commits only. A real Docker daemon invocation remains untested in this session.
 
-## Verification-gate development (pending independent CI execution)
+## Verification-gate development history
 
 This branch adds a digest-pinned Docker test runner, commit-bound verification records, a publication gate, explicit unverified exceptions, read-only status and additional mocked failure-path tests. Docker execution is not exercised by the offline suite; its launch flags and failure handling are unit-tested with stubs. The repository's offline matrix now targets Linux, macOS and Windows on Python 3.11 and 3.13.
 
-**At preparation:** no real Docker test, authenticated GitHub/OpenAI end-to-end operation, or independent platform matrix result has been observed. Actual CI status and defects must be inspected before merge. The prior 40/40 historical result does not establish that this branch passes.
+**At the time this development note was prepared:** no real Docker test or authenticated GitHub/OpenAI end-to-end run had been observed. Subsequent `main` CI evidence is recorded above; the earlier 40/40 local result is not a substitute for commit-specific CI.

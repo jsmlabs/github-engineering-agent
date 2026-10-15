@@ -38,7 +38,7 @@ Nothing in GitHub issue text, repository files or model output may expand these 
 
 ## Explicitly unsupported
 
-The program does **not** support automatic merge, deployment, PR review approval, workflow modifications, broad filesystem edits, new files, deletion, arbitrary shell execution suggested by the model, automatic target-project tests, cryptographic attestation, full secret detection or generalized recovery from all ambiguous failures.
+The program does **not** support automatic merge, deployment, PR review approval, workflow modifications, broad filesystem edits, new files, deletion, arbitrary shell execution suggested by the model, automatic selection of target-project tests, cryptographic attestation, full secret detection or generalized recovery from all ambiguous failures. The operator may explicitly configure isolated test execution through `verify`.
 
 It performs no live proof of generated code's security, maintainability or compliance. Python `ast.parse` and JSON parsing are syntactic checks, not runtime execution or semantic validation. Other allowed file formats need independent tooling.
 
@@ -60,7 +60,7 @@ Report security defects privately to the repository owner through an established
 The project has deterministic offline tests, including temporary Git repositories and simulated GitHub/OpenAI requests. Their observed scope is recorded in [VERIFICATION.md](VERIFICATION.md). They **do not establish** real GitHub authorization behavior, production security, live model compatibility, CI quality, or overall reliability in an arbitrary target repository.
 
 
-## Optional isolated verification and publication gate (development branch)
+## Optional isolated verification and publication gate
 
 `verify` accepts only a trusted, preloaded digest-pinned Docker image and an explicit JSON argv array. It uses a read-only checkout mount, `--network=none`, no Linux capabilities, no-new-privileges, an unprivileged container user, read-only root filesystem and bounded CPU, memory, PIDs, execution time and temporary scratch storage. No shell is implicitly introduced. **A Docker daemon remains a trusted host-level dependency; these options are not a sandbox against daemon compromise, kernel vulnerabilities or unsafe host configuration.** Run on a dedicated, rootless/isolated worker. Container image provenance and test correctness remain operator responsibilities.
 
