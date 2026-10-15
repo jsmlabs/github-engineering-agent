@@ -62,7 +62,7 @@ The test command is **operator-selected**, not discovered or proposed for execut
 
 ### Publication gate
 
-A matching, commit-bound `.verified.json` with outcome **PASS** and exit code zero permits publication. **FAIL**, malformed, or stale records block it. Only when **no report exists**, `--approve-unverified --unverified-reason "..."` can authorize a documented exception; the reason must have 12–300 characters. This is an explicit acceptance of missing test evidence, not a claim of safety. The verification report is an unsigned local artifact; a malicious host can tamper with it.
+A matching, commit-bound `.verified.json` with outcome **PASS** and a genuine integer exit code of zero permits publication; boolean or malformed exit codes fail closed. **FAIL**, malformed, or stale records block it. Only when **no report exists**, `--approve-unverified --unverified-reason "..."` can authorize a documented exception; the reason must have 12–300 characters. This is an explicit acceptance of missing test evidence, not a claim of safety. The verification report is an unsigned local artifact; a malicious host can tamper with it.
 
 ## Failure response and recovery
 
