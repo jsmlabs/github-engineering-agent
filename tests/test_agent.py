@@ -30,6 +30,7 @@ class AgentTest(unittest.TestCase):
         self.checkout = self.root / "checkout"
         self.checkout.mkdir()
         git(self.checkout, "init", "-b", "main")
+        git(self.checkout, "config", "core.autocrlf", "false")
         git(self.checkout, "config", "user.email", "tester@example.invalid")
         git(self.checkout, "config", "user.name", "Tester")
         (self.checkout / "app.py").write_text("x = 1\n", encoding="utf-8")
