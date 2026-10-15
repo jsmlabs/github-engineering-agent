@@ -6,6 +6,7 @@ import ast
 import difflib
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -25,6 +26,7 @@ PROTECTED_NAMES = {"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "poetry.l
 MAX_FILES = 5
 MAX_FILE_BYTES = 20_000
 MAX_TOTAL_BYTES = 55_000
+MAX_STATE_BYTES = 256_000
 MAX_ISSUE_CHARS = 6_000
 MAX_TREE_FILES = 1_000
 
@@ -198,7 +200,7 @@ def validate_source_sensitivity(path: str, content: str) -> None:
 
 
 def strict_json_loads(source: str | bytes) -> Any:
-    """Decode untrusted JSON without duplicate keys or non-standard numeric values."""
+    """Reject ambiguous numbers, object keys and invalid Unicode at JSON boundaries."""
     def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, value in pairs:
@@ -210,7 +212,30 @@ def strict_json_loads(source: str | bytes) -> Any:
     def reject_constant(value: str) -> None:
         raise ValueError("Non-finite JSON number")
 
-    return json.loads(source, object_pairs_hook=unique_pairs, parse_constant=reject_constant)
+    def finite_float(value: str) -> float:
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError("Non-finite JSON number")
+        return parsed
+
+    decoded = json.loads(source, object_pairs_hook=unique_pairs,
+                         parse_constant=reject_constant, parse_float=finite_float)
+    # json.loads accepts lone escaped UTF-16 surrogates, which cannot be
+    # encoded as UTF-8 and can crash later proposal/API serialization.
+    pending = [decoded]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise ValueError("Invalid Unicode in JSON") from exc
+        elif isinstance(value, dict):
+            pending.extend(value.keys())
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+    return decoded
 
 
 def validate_content_syntax(path: str, content: str) -> None:
@@ -292,7 +317,11 @@ def private_json_write(path: Path, value: dict[str, Any]) -> None:
 
 def load_json(path: Path) -> dict[str, Any]:
     try:
-        data = strict_json_loads(path.read_text("utf-8"))
+        with path.open("rb") as stream:
+            raw = stream.read(MAX_STATE_BYTES + 1)
+        if len(raw) > MAX_STATE_BYTES:
+            raise AgentError("JSON state file exceeds size budget")
+        data = strict_json_loads(raw.decode("utf-8"))
     except (OSError, ValueError, RecursionError) as exc:
         raise AgentError("Cannot read valid JSON file") from exc
     if not isinstance(data, dict):
