@@ -507,6 +507,53 @@ class AgentTest(unittest.TestCase):
                     with self.assertRaisesRegex(AgentError, "Invalid structured model output"):
                         Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
 
+    def test_saved_state_rejects_ambiguous_json(self):
+        from gh_agent.core import load_json
+        for raw in (
+            '{"schema": 2, "schema": 1}',
+            '{"outer": {"commit": "a", "commit": "b"}}',
+            '{"result": NaN}',
+            '{"result": Infinity}',
+            '{"result": -Infinity}',
+            '{"bad":',
+        ):
+            with self.subTest(raw=raw):
+                self.planfile.write_text(raw, encoding="utf-8")
+                with self.assertRaisesRegex(AgentError, "Cannot read valid JSON"):
+                    load_json(self.planfile)
+        self.planfile.write_text('{"schema": 2}', encoding="utf-8")
+        self.assertEqual(load_json(self.planfile), {"schema": 2})
+
+    def test_api_json_rejects_duplicate_keys_and_nonfinite_values(self):
+        from gh_agent.services import json_request
+        class Response:
+            def __init__(self, body):
+                self.body = body
+            def __enter__(self):
+                return self
+            def __exit__(self, *_):
+                return None
+            def read(self, _limit):
+                return self.body
+
+        for raw in (
+            b'{"ok": true, "ok": false}',
+            b'{"nested": {"x": 1, "x": 2}}',
+            b'{"value": NaN}',
+            b'{"value": Infinity}',
+            b'{"value": -Infinity}',
+        ):
+            with self.subTest(raw=raw), patch("gh_agent.services.build_opener") as opener:
+                opener.return_value.open.return_value = Response(raw)
+                with self.assertRaisesRegex(AgentError, "invalid JSON"):
+                    json_request("https://api.github.com/repos/example/safe-repo",
+                                 token="fake", github=True)
+        with patch("gh_agent.services.build_opener") as opener:
+            opener.return_value.open.return_value = Response(b'{"ok": true}')
+            self.assertEqual(
+                json_request("https://api.github.com/repos/example/safe-repo",
+                             token="fake", github=True), {"ok": True})
+
     def test_model_incomplete_is_blocked(self):
         with patch("gh_agent.services.json_request", return_value={"status": "incomplete", "output": []}):
             with self.assertRaises(AgentError):
