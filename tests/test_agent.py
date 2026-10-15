@@ -33,7 +33,7 @@ class AgentTest(unittest.TestCase):
         git(self.checkout, "config", "core.autocrlf", "false")
         git(self.checkout, "config", "user.email", "tester@example.invalid")
         git(self.checkout, "config", "user.name", "Tester")
-        (self.checkout / "app.py").write_text("x = 1\n", encoding="utf-8")
+        (self.checkout / "app.py").write_text("x = 1\n", encoding="utf-8", newline="")
         git(self.checkout, "add", "app.py")
         git(self.checkout, "commit", "-m", "initial")
         self.base = git(self.checkout, "rev-parse", "HEAD")
@@ -390,7 +390,7 @@ class AgentTest(unittest.TestCase):
         subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
         branch = "agent/issue-7-test"
         run_git(self.checkout, "push", f"--force-with-lease=refs/heads/{branch}:", str(remote), f"HEAD:refs/heads/{branch}")
-        (self.checkout / "app.py").write_text("x = 42\n", encoding="utf-8")
+        (self.checkout / "app.py").write_text("x = 42\n", encoding="utf-8", newline="")
         git(self.checkout, "add", "app.py")
         git(self.checkout, "commit", "-m", "second")
         with self.assertRaisesRegex(AgentError, "Git push failed"):
@@ -502,7 +502,7 @@ class AgentTest(unittest.TestCase):
                 gh.existing_pr("agent/test", "main")
 
     def test_no_output_for_suspicious_source_before_model_call(self):
-        (self.checkout / "app.py").write_text("OPENAI_API_KEY=sk-" + "x" * 40 + "\n")
+        (self.checkout / "app.py").write_text("OPENAI_API_KEY=sk-" + "x" * 40 + "\n", newline="")
         git(self.checkout, "add", "app.py")
         git(self.checkout, "commit", "-m", "test sensitive")
         new_sha = git(self.checkout, "rev-parse", "HEAD")
