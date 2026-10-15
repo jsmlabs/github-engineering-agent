@@ -33,7 +33,7 @@ flowchart TB
 - **Untrusted issue/source:** GitHub issue text and selected files provide task context, never executable instructions or permission to extend scope.
 - **Untrusted model/API response:** Strict parsing, structural checks, allowed paths, content budgets and original-file hashes constrain proposed data before any local edit.
 - **Locally trusted dependencies:** Python process, filesystem, Git executable, Git configuration/filters/helpers, Docker daemon and operator-selected image require independent trust and isolation.
-- **Remote observations:** GitHub issue, base, ref and PR state are true only at observation time; push and PR creation cannot form one atomic transaction.
+- **Remote observations:** GitHub issue, base, ref and PR state are true only at observation time; push and PR creation cannot form one atomic transaction. Repository archive/default-branch fields and issue bodies are type-checked before planning to avoid ambiguous provider data.
 
 For threat assumptions and residual risks see [Security](../SECURITY.md).
 
