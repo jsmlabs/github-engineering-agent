@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from .core import AgentError, MAX_ISSUE_CHARS, require_repo
+from .core import AgentError, MAX_ISSUE_CHARS, require_repo, strict_json_loads
 
 
 class RejectRedirect(HTTPRedirectHandler):
@@ -37,8 +37,8 @@ def json_request(url: str, *, token: str, payload: dict | None = None, github: b
             blob = response.read(max_bytes + 1)
             if len(blob) > max_bytes:
                 raise AgentError("API response size exceeded")
-            return json.loads(blob)
-    except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+            return strict_json_loads(blob)
+    except (HTTPError, URLError, TimeoutError, ValueError, RecursionError) as exc:
         # Response body may contain private issue content: never print it.
         if isinstance(exc, HTTPError):
             raise AgentError(f"API request failed: HTTP {exc.code}") from exc
@@ -163,24 +163,9 @@ class Model:
             content.extend(part for part in parts if part.get("type") == "output_text")
         if len(content) != 1 or not isinstance(content[0].get("text"), str):
             raise AgentError("Missing single structured model output")
-        def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-            result: dict[str, Any] = {}
-            for key, value in pairs:
-                if key in result:
-                    raise ValueError("Duplicate structured output key")
-                result[key] = value
-            return result
-
-        def reject_constant(value: str) -> None:
-            raise ValueError("Non-finite structured output number")
-
         try:
-            decoded = json.loads(
-                content[0]["text"],
-                object_pairs_hook=unique_pairs,
-                parse_constant=reject_constant,
-            )
-        except ValueError as exc:
+            decoded = strict_json_loads(content[0]["text"])
+        except (ValueError, RecursionError) as exc:
             raise AgentError("Invalid structured model output") from exc
         if not isinstance(decoded, dict):
             raise AgentError("Model output must be JSON object")
