@@ -176,6 +176,30 @@ class AgentTest(unittest.TestCase):
         with self.assertRaises(AgentError):
             guarded_file(self.checkout, "src/bad.py", allow_new=False)
 
+    def test_strict_json_rejects_overflow_and_unpaired_surrogates(self):
+        from gh_agent.core import strict_json_loads
+        valid = '{"value": 1e2, "key": "\\ud83d\\ude00"}'
+        self.assertEqual(strict_json_loads(valid), {"value": 100.0, "key": "\U0001f600"})
+        for raw in (
+            '{"value": 1e999}',
+            '{"value": -1e999}',
+            '{"value": 1e-9999, "bad": "\\ud800"}',
+            '{"\\udc00": true}',
+            '{"nested": ["\\ud800"]}',
+        ):
+            with self.subTest(raw=raw), self.assertRaisesRegex(ValueError, "Non-finite|Unicode"):
+                strict_json_loads(raw)
+            with self.subTest(source=raw), self.assertRaisesRegex(AgentError, "Invalid Python/JSON"):
+                validate_content_syntax("config.json", raw)
+
+    def test_local_json_file_size_is_bounded(self):
+        from gh_agent.core import MAX_STATE_BYTES, load_json
+        self.planfile.write_bytes(b" " * (MAX_STATE_BYTES + 1))
+        with self.assertRaisesRegex(AgentError, "exceeds size budget"):
+            load_json(self.planfile)
+        self.planfile.write_text('{"schema": 2}', encoding="utf-8")
+        self.assertEqual(load_json(self.planfile), {"schema": 2})
+
     def test_json_source_rejects_ambiguous_or_nonstandard_values(self):
         valid = '{"nested": {"x": 1}, "items": [true, null, 2.5]}'
         validate_content_syntax("config.json", valid)
@@ -540,6 +564,18 @@ class AgentTest(unittest.TestCase):
                 Model("key", "name").ask("instructions", {"value": float("inf")},
                                          {"type": "object"}, "test")
             send.assert_not_called()
+
+    def test_model_rejects_surrogate_and_overflow_output(self):
+        for value in ('1e999', '"\\ud800"'):
+            with self.subTest(value=value):
+                response = {"status": "completed", "output": [{
+                    "type": "message", "content": [{
+                        "type": "output_text", "text": '{"value": ' + value + '}',
+                    }],
+                }]}
+                with patch("gh_agent.services.json_request", return_value=response):
+                    with self.assertRaisesRegex(AgentError, "Invalid structured model output"):
+                        Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
 
     def test_model_rejects_ambiguous_structured_json(self):
         for payload in (
