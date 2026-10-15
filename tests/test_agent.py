@@ -204,6 +204,18 @@ class AgentTest(unittest.TestCase):
             cli.run_auto(args)
         self.assertEqual(calls, ["plan", "apply", "publish"])
 
+    def test_run_rejects_missing_test_plan_before_mutation(self):
+        args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile),
+            repo="example/safe-repo", issue=7, model="stub", allowed_file=["app.py"],
+            allow_source_upload=True, approve_local=True, approve_publish=True)
+        with self.assertRaisesRegex(AgentError, "without tests"):
+            cli.run_auto(args)
+        self.assertFalse(self.planfile.exists())
+        args.test_image = "test@sha256:" + "a" * 64
+        with self.assertRaisesRegex(AgentError, "both"):
+            cli.run_auto(args)
+        self.assertFalse(self.planfile.exists())
+
     def test_data_disclosure_requires_opt_in(self):
         with self.assertRaises(AgentError):
             cli.plan(argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=False))
