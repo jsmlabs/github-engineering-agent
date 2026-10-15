@@ -55,6 +55,8 @@ flowchart LR
     I --> J["Independent human review + CI"]
 ~~~
 
+The `dashboard` command constructs a read-only snapshot of proposal/receipt identity, commit-parent and file-blob consistency, clean checkout and bound verification state. It exposes a stable minimal JSON form, but deliberately never reports remote publication success. The `commands` catalog is static, filterable, and also supports JSON output; it cannot invoke the listed commands.
+
 The explicit `menu` command adds bounded TTY-only navigation across read-only local guidance, checkout checks and local state inspection. It keeps the last proposal path only in process memory, supports monochrome output, refuses non-interactive input, and never calls mutating/model/remote operations. No navigation choice grants permission for `plan`, `apply`, `publish` or `run`.
 
 The user-friendly CLI entrypoint displays a short home screen with no subcommand. `guide` prints a five-step review-first walkthrough, `doctor` inspects local prerequisites without network requests, and `next` checks the saved proposal/receipt/report and local commit before suggesting a step. All four are read-only; `--checkout` defaults to the current working directory, and existing explicit paths remain supported.
