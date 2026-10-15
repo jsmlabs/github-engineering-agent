@@ -17,6 +17,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ### Security and input validation
 
+- Reject boolean or malformed test-report exit codes rather than treating JSON `false` as numeric zero. Require true integer issue numbers in GitHub API responses and normalize disconnected HTTP transports to controlled errors; add focused regression tests.
 - Reject invalid Unicode on outbound API/model JSON paths with controlled errors before network access; add a regression test.
 - Harden shared JSON decoding against finite-syntax overflow (`1e999`) and unpaired Unicode surrogates; cap proposal/receipt/verification file reads at 256,000 bytes and add targeted regressions. Valid JSON and application schemas are unchanged.
 
