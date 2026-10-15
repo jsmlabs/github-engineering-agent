@@ -91,8 +91,19 @@ class GitHub:
         if len(prs) >= 100:
             raise AgentError("PR search results may be incomplete; reconcile manually")
         for pr in prs:
-            if pr.get("head", {}).get("ref") == branch and pr.get("base", {}).get("ref") == base:
-                if pr.get("state") != "open":
+            # API responses are untrusted: missing or malformed nested fields
+            # must fail closed, not cause an uncaught AttributeError or be skipped.
+            if not isinstance(pr, dict):
+                raise AgentError("Malformed PR search entry")
+            head, target = pr.get("head"), pr.get("base")
+            state = pr.get("state")
+            if (not isinstance(head, dict) or not isinstance(target, dict)
+                    or not isinstance(head.get("ref"), str) or not head["ref"]
+                    or not isinstance(target.get("ref"), str) or not target["ref"]
+                    or not isinstance(state, str) or state not in ("open", "closed")):
+                raise AgentError("Malformed PR search entry")
+            if head["ref"] == branch and target["ref"] == base:
+                if state != "open":
                     raise AgentError("Existing PR is closed; refusing to reuse its branch")
                 return pr
         return None

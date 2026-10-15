@@ -47,7 +47,7 @@ It performs no live proof of generated code's security, maintainability or compl
 **Do not blindly retry a failed mutating operation.** A transport timeout may mean the remote change already occurred. Consult [Architecture and recovery](docs/ARCHITECTURE.md) and inspect exact GitHub refs, issue revision, PR head/base and draft state before acting.
 
 - **After local apply failure:** preserve branch/worktree/receipt evidence; there is no automatic destructive rollback. Inspect before making further changes.
-- **After uncertain push/PR creation:** verify the exact remote branch commit and PR state. Stop if a collision, stale base, closed PR or incomplete search result appears.
+- **After uncertain push/PR creation:** verify the exact remote branch commit and PR state. Stop if a collision, stale base, closed PR, incomplete search result or malformed PR response appears.
 - **Suspected credential exposure:** stop use, restrict access, preserve relevant non-secret evidence, revoke/rotate compromised credentials and audit GitHub/provider activity. Avoid sharing token-bearing logs.
 - **Suspected malicious generated change:** stop publication or review/merge, inspect the approved proposal and committed blobs, assess whether the change reached a remote branch, and follow the repository's incident process if necessary.
 

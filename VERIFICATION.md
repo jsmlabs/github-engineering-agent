@@ -33,6 +33,19 @@ This documentation revision reorganizes usage, security, architecture and limita
 
 The completed change should record the exact resulting GitHub commit and outcome in the PR/commit report; the historic v0.2.0 release outcomes remain separate.
 
+## Issue #1: fail-closed PR-response validation (2026-10-15)
+
+This bounded pilot addresses malformed GitHub pull-request search data. Prior to the fix, a response with `head: null` raised an unhandled `AttributeError`; after the fix, malformed records are rejected as `AgentError`. Valid matching, nonmatching and closed PR behavior remains covered.
+
+| Check | Outcome | Limit |
+| --- | --- | --- |
+| Reproduction against previous implementation | **REPRODUCED** | `AttributeError` from malformed nested PR fields |
+| `python scripts/verify.py` after patch | **PASS - 40/40** | Offline tests, compile, CLI help |
+| New PR-record regression tests | **PASS - 2 tests** | Simulated malformed and well-formed GitHub responses |
+| Actual GitHub response corruption and live publish | **NOT TESTED** | No authenticated end-to-end CLI run |
+
+No new Python dependency, version change, schema change or automatic merge/deployment was introduced. The test results refer to the changed source tree, not to the original v0.2.0 release.
+
 ## Explicitly not verified
 
 | Concern | Evidence status |

@@ -255,6 +255,30 @@ class AgentTest(unittest.TestCase):
             with self.assertRaisesRegex(AgentError, "incomplete"):
                 gh.existing_pr("agent/example", "main")
 
+    def test_malformed_pr_search_records_fail_closed(self):
+        gh = GitHub("token", "example/safe-repo")
+        malformed = [
+            None,
+            {},
+            {"head": None, "base": {"ref": "main"}, "state": "open"},
+            {"head": {"ref": "agent/test"}, "base": None, "state": "open"},
+            {"head": {"ref": 42}, "base": {"ref": "main"}, "state": "open"},
+            {"head": {"ref": "agent/test"}, "base": {"ref": "main"}, "state": None},
+        ]
+        for entry in malformed:
+            with self.subTest(entry=entry), patch.object(gh, "get", return_value=[entry]):
+                with self.assertRaisesRegex(AgentError, "Malformed PR search entry"):
+                    gh.existing_pr("agent/test", "main")
+
+    def test_valid_pr_search_results_preserve_matching_behavior(self):
+        gh = GitHub("token", "example/safe-repo")
+        unrelated = {"head": {"ref": "other"}, "base": {"ref": "main"}, "state": "open"}
+        matching = {"head": {"ref": "agent/test"}, "base": {"ref": "main"}, "state": "open", "draft": True}
+        with patch.object(gh, "get", return_value=[unrelated, matching]):
+            self.assertIs(gh.existing_pr("agent/test", "main"), matching)
+        with patch.object(gh, "get", return_value=[unrelated]):
+            self.assertIsNone(gh.existing_pr("agent/test", "main"))
+
     def test_create_only_push_lease_is_enforced_by_git(self):
         # Real local Git remote: the lease allows an absent ref but must deny
         # any subsequent overwrite, including a fast-forward update.

@@ -4,6 +4,10 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Reliability
+
+- Fail closed with `AgentError` when GitHub pull-request search results contain malformed records or nested fields, instead of leaking an unhandled exception. Added positive and negative regression tests.
+
 ### Documentation
 
 - Reorganized the README around onboarding, **reviewed vs. high-trust execution**, authorization flags, state checks, and recovery.
