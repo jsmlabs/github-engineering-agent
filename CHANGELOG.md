@@ -9,7 +9,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 ### Expanded engineering scope (unreleased)
 
 - Permit explicitly allowlisted creation of new files and directories and updates to named workflows, build configuration and dependency/lockfiles while retaining path/secret checks and scoped staging. Workflow changes require the reviewed `plan → review → apply` flow; unreviewed `run` blocks workflow scopes before planning.
-- Raise bounded plans from five to twelve files, 20 KB to 32 KB/file, 55 KB to 96 KB aggregate and 400 to 1,600 changed lines; remove the fixed candidate-file tree ceiling.
+- Raise bounded plans from five to twelve files, 20 KB to 32 KB/file, 55 KB to 96 KB aggregate and 400 to 1,600 changed lines; raise the local state JSON read cap to 512,000 bytes and remove the fixed candidate-file tree ceiling.
 - Remove one redundant model selection call per plan; retain the existing proposal/receipt schema and deterministic validation.
 - Run isolated tests in a writable disposable checkout copy, preserving the operator checkout, restricted Docker privileges and offline networking.
 - Allow opt-in review-ready PR creation with `--ready-for-review`; keep draft creation as default and preserve independent remote verification.
