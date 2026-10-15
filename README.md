@@ -1,37 +1,53 @@
+<div align="center">
+
 # GitHub Engineering Agent
 
-**A bounded, approval-driven CLI for turning GitHub issues into reviewable code changes and draft pull requests.**
+**From GitHub issues to controlled, reviewable draft pull requests.**
 
-[Quick start](#quick-start) · [Workflow](#choose-a-workflow) · [Safety](#safety-and-limits) · [Recovery](#recovery-and-common-failures) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Evidence](VERIFICATION.md) · [Changelog](CHANGELOG.md)
+A lightweight Python CLI that separates AI-generated proposals from deterministic validation, explicit approval, and remote publication.
+
+[![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Release version](https://img.shields.io/badge/version-0.2.0-555)
+![Status](https://img.shields.io/badge/status-reference%20implementation-6B7280)
+
+[Get started](#quick-start) · [Explore the workflow](#workflow-at-a-glance) · [Compare modes](#choose-a-workflow) · [Safety](#safety-and-limits) · [Documentation](#documentation-map)
+
+</div>
 
 > [!IMPORTANT]
-> **v0.2.0 is a locally tested reference implementation, not a production-validated autonomous engineer.** It can propose edits and, with explicit authorization, commit and publish them as a **draft** pull request. The optional verification command executes only an operator-configured test inside a constrained Docker container; it does **not** merge, approve reviews, or deploy. Real OpenAI and GitHub end-to-end interactions have not been verified.
+> **Reference implementation, not a production-validated autonomous engineer.** The CLI may commit approved edits and publish a **draft** pull request, but it does not approve, merge, or deploy changes. The isolated verification command runs only an operator-configured test. Real OpenAI/GitHub end-to-end operation remains unverified.
 
-## What it does
+## At a glance
 
-The agent operates on **one open GitHub issue** in a **dedicated, clean checkout** of an existing repository. The operator selects up to five existing tracked files. The model proposes full-file replacements, while deterministic Python and Git checks enforce scope, source integrity, change budgets, and remote-state preconditions.
+| Scope | Control | Output |
+| :--- | :--- | :--- |
+| **One open issue** and **1–5 approved tracked files** | Deterministic file, content, revision and change-budget checks | A private, inspectable proposal |
+| **Explicit local approval** tied to proposal SHA-256 | Local branch, commit and exact Git-object validation | A recorded local commit |
+| **Commit-bound verification** or an explicit exception | Remote precondition checks and create-only branch push | An **open draft PR**, never an automatic merge |
 
-```text
-Open issue + explicitly approved files
-                |
-             plan                 Read issue/source; write private proposal
-                |
-             review               Print complete diff + proposal SHA-256
-                |
-      inspect and approve         Human decision (recommended)
-                |
-             apply                Verify approved hash; local branch + commit
-                |
-       independent review         Operator's responsibility
-                |
-            verify               Optional isolated, commit-bound test execution
-                |
-         publication gate         PASS or explicit unverified exception
-                |
-            publish              Verify remote state; branch + draft PR
-                |
-       human review and CI        No automatic merge or deployment
+## Workflow at a glance
+
+```mermaid
+flowchart TD
+    A["Open issue + operator-approved files"] --> B["PLAN · Private JSON proposal"]
+    B --> C["REVIEW · Full diff + SHA-256"]
+    C --> D{"Approve exact proposal?"}
+    D -- "No" --> X["Stop · No code changes"]
+    D -- "Yes" --> E["APPLY · Local branch + commit"]
+    E --> F["VERIFY · Operator-configured isolated tests"]
+    F --> G{"Publication gate"}
+    G -- "PASS" --> H["PUBLISH · Create-only push + draft PR"]
+    G -- "No test record + explicit exception" --> H
+    G -- "FAIL / stale record" --> Y["Stop · Publication blocked"]
+    H --> I["Human review + external CI"]
+    classDef blocked fill:#f8d7da,stroke:#b42318,color:#741b1b
+    class X,Y blocked
 ```
+
+**Recommended path:** `plan → review → apply → verify → publish`. The optional `run` command skips the proposal-specific review pause; it still requires explicit permissions, deterministic checks, and a verification record or allowed exception. No path automatically merges or deploys.
+
+### Command reference
 
 | Command | Outcome | Authorization |
 | --- | --- | --- |
@@ -42,8 +58,6 @@ Open issue + explicitly approved files
 | `status` | Read-only local recovery view; optional remote ref check | None |
 | `publish` | Create-only push, verified **draft** PR after passing gate | `--approve-publish`, verification or explicit exception |
 | `run` | Opt-in `plan → apply → verify/gate → publish` without an inspection pause | Source-upload, local-write and remote-publish approvals; test configuration or explicit exception |
-
-**Recommended:** use `plan → review → apply → verify → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
 
 ## Quick start
 
@@ -201,7 +215,7 @@ Checks for common credentials, terminal-control characters and unsafe paths help
 
 For state transitions and failure boundaries, read [Architecture and recovery](docs/ARCHITECTURE.md). A partially successful remote push **does not** imply that a PR exists, and a draft PR **does not** imply successful tests, mergeability or production readiness.
 
-## Project documentation
+## Documentation map
 
 | File | What it owns |
 | --- | --- |
@@ -217,7 +231,7 @@ For state transitions and failure boundaries, read [Architecture and recovery](d
 
 ## Compatibility and provenance
 
-**Proposal schema 2 is unchanged; the verification record has its own schema 1.** v0.2.0 uses proposal schema 2. v0.1.0/schema-1 proposals and receipts are **not** compatible. Recreate proposals with explicit file authorization. No in-place migration is provided. This is a standalone CLI, not a background agent or hosted service; it has no job queue, scheduling, target test runner, proof of business-invariant preservation, or automatic merge/deploy support.
+**Proposal schema 2 is unchanged; the verification record has its own schema 1.** v0.2.0 uses proposal schema 2. v0.1.0/schema-1 proposals and receipts are **not** compatible. Recreate proposals with explicit file authorization. No in-place migration is provided. This is a standalone CLI, not a background agent or hosted service; it has no job queue, scheduling, automatic target-test selection, proof of business-invariant preservation, or automatic merge/deploy support.
 
 Architecture and engineering conventions are informed by the separately maintained [AI Agent Execution Contracts](https://github.com/jsmlabs/chatgpt-context/blob/main/knowledge/ai-agent-execution-contracts.md), [Agent Workflow Architect](https://github.com/jsmlabs/chatgpt-context/blob/main/prompts/agent-workflow-architect.md), [Repository Engineering Execution](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/repository-engineering-execution.md), and [Verification Engineering](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/verification-engineering.md). Implementation-specific evidence takes precedence over aspirational specifications.
 
