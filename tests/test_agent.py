@@ -210,7 +210,7 @@ class AgentTest(unittest.TestCase):
                                      approve=True, expected_sha256=sha(self.planfile.read_bytes())))
         args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), json=False)
         (self.checkout / "rogue.txt").write_text("changed", encoding="utf-8")
-        with self.assertRaisesRegex(AgentError, "unexpected changes"):
+        with self.assertRaisesRegex(AgentError, "Checkout must be completely clean"):
             cli.dashboard(args)
         (self.checkout / "rogue.txt").unlink()
         receipt_path = Path(str(self.planfile) + ".applied.json")
