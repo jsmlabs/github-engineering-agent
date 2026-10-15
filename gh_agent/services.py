@@ -154,6 +154,8 @@ class Model:
             parts = item.get("content")
             if not isinstance(parts, list) or not all(isinstance(part, dict) for part in parts):
                 raise AgentError("Malformed model message content")
+            if any(part.get("type") == "refusal" for part in parts):
+                raise AgentError("Model response refused")
             content.extend(part for part in parts if part.get("type") == "output_text")
         if len(content) != 1 or not isinstance(content[0].get("text"), str):
             raise AgentError("Missing single structured model output")
