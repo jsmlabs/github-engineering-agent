@@ -29,6 +29,10 @@ The model proposes **data**, not executable authority. The trusted Python/Git la
 
 Nothing in GitHub issue text, repository files or model output may expand these permissions. The caller must also enforce GitHub token scopes, branch protections and organization policies independently.
 
+## GitHub Actions supply-chain boundary
+
+The offline workflow uses SHA-pinned official `actions/checkout` v7 and `actions/setup-python` v7, rather than mutable major tags. It retains `permissions: contents: read` and `persist-credentials: false`, and bounds each job to 15 minutes. These controls reduce token exposure and action-tag drift but do not prove runner or action security; GitHub-hosted runners must support the actions' Node 24 runtime.
+
 ## Deployment and credential hygiene
 
 1. Operate in a **dedicated, clean and trusted checkout**, preferably an isolated worker. Avoid shared worktrees or concurrent mutators.

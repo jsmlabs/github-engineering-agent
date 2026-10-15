@@ -50,6 +50,10 @@ No new Python dependency, version change, schema change or automatic merge/deplo
 
 The model-response hardening from PR #3 and the verification/recovery changes were integrated through PR #2 into `main` at `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a`. GitHub Actions workflow run [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), triggered by that commit, reports **completed / success** for the offline verification workflow. This establishes the workflow's recorded outcome for that SHA only, not a live Docker verification, end-to-end authenticated GitHub/OpenAI operation, or production readiness.
 
+## Current strict-JSON hardening CI (2026-10-15)
+
+PR #12 head `97211ed2240fa1d68f6a1a8e5df6bc958dea9b8a` completed GitHub Actions [run 38809280416](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809280416) with **6/6 successful jobs** across Ubuntu, macOS and Windows on Python 3.11/3.13. This is offline unit, compile and CLI verification only, not live Docker or authenticated OpenAI/GitHub integration. The action-pinning changes in this subsequent update require their own new CI run.
+
 ## Explicitly not verified
 
 | Concern | Evidence status |
