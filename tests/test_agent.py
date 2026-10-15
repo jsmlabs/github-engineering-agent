@@ -343,6 +343,20 @@ class AgentTest(unittest.TestCase):
         self.assertFalse(self.planfile.exists())
         self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
 
+    def test_autonomous_run_rejects_workflow_scope_before_side_effects(self):
+        args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile),
+            repo="example/safe-repo", issue=7, model="stub",
+            allowed_file=[".github/workflows/publish.yml"],
+            allow_source_upload=True, approve_local=True, approve_publish=True,
+            approve_unverified=True,
+            unverified_reason="Offline mocked publish has no executable target tests")
+        with patch.object(cli, "plan") as plan:
+            with self.assertRaisesRegex(AgentError, "cannot edit GitHub Actions workflows"):
+                cli.run_auto(args)
+            plan.assert_not_called()
+        self.assertFalse(self.planfile.exists())
+        self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
+
     def test_run_auto_calls_pipeline_when_opted_in(self):
         args = argparse.Namespace(checkout="repo", output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=True, allowed_file=["app.py"], approve_local=True, approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests")
         calls = []
