@@ -38,6 +38,8 @@ Nothing in GitHub issue text, repository files or model output may expand these 
 
 Repository metadata is treated as untrusted API data. Missing or malformed repository identity fields fail closed before planning or publication, rather than producing an uncaught type error.
 
+The repository identifier is validated as a string before regex matching; malformed programmatic inputs fail closed with `AgentError`.
+
 ## Explicitly unsupported
 
 The program does **not** support automatic merge, deployment, PR review approval, workflow modifications, broad filesystem edits, new files, deletion, arbitrary shell execution suggested by the model, automatic selection of target-project tests, cryptographic attestation, full secret detection or generalized recovery from all ambiguous failures. The operator may explicitly configure isolated test execution through `verify`.
