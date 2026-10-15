@@ -52,8 +52,9 @@ class AgentTest(unittest.TestCase):
     def test_home_and_guide_are_read_only(self):
         for argv, expected in (([], "GET STARTED"), (["guide"], "SAFE FIVE-STEP")):
             with self.subTest(argv=argv), redirect_stdout(StringIO()) as stdout:
-                with patch.object(cli, "GitHub") as gh, patch.object(cli, "Model") as model, \\
-                     patch.object(cli, "run_git") as local_git:
+                with (patch.object(cli, "GitHub") as gh,
+                      patch.object(cli, "Model") as model,
+                      patch.object(cli, "run_git") as local_git):
                     self.assertEqual(cli.main(argv), 0)
                     gh.assert_not_called()
                     model.assert_not_called()
