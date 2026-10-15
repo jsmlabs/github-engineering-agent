@@ -4,6 +4,14 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Fail-closed model and recovery contracts
+
+- Reject unexpected model output item types, incomplete messages, and non-text structured-message parts rather than silently ignoring them alongside valid JSON; retain reasoning and a single completed structured-text response.
+- Reject invalid and non-finite outbound API/model context JSON before network requests.
+- Reject missing repository/base fields in `status --remote` receipts with controlled errors before remote access.
+- Add positive and negative regressions without changing valid CLI, proposal schemas, authorization, dependencies, or draft-only behavior.
+
+
 ### CI supply-chain modernization
 
 - Upgrade `actions/checkout` and `actions/setup-python` to upstream v7, pinned to verified immutable Git commit SHAs; preserve read-only CI permissions, no checkout credentials and the existing six-configuration test matrix.
