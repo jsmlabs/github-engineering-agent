@@ -30,7 +30,7 @@ MAX_TREE_FILES = 1_000
 
 
 def require_repo(repo: str) -> str:
-    if not REPO_PATTERN.fullmatch(repo) or any(part.startswith(("-", ".")) or part.endswith(".") or part in {".", ".."} for part in repo.split("/")):
+    if not isinstance(repo, str) or not REPO_PATTERN.fullmatch(repo) or any(part.startswith(("-", ".")) or part.endswith(".") or part in {".", ".."} for part in repo.split("/")):
         raise AgentError("Expected repository identifier owner/name")
     return repo
 
