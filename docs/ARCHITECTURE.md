@@ -55,7 +55,7 @@ flowchart LR
     I --> J["Independent human review + CI"]
 ~~~
 
-The operator can call `status` at any time to inspect local recovery state (and optionally the remote) **without mutation**. `run` calls `plan → apply → verify (if configured) → publish` after up-front permission checks; it **skips** the proposal-specific `review` pause.
+The operator can call `status` at any time to inspect local recovery state (and optionally the remote) **without mutation**. `run` calls `plan → apply → verify (if configured) → publish` after up-front permission checks; it **skips** the proposal-specific `review` pause. As a deterministic preflight boundary, `run` rejects any explicitly selected `.github/workflows/` file; workflow changes require manual diff review and exact-digest approval.
 
 ### 1. `plan` - proposal, no checkout mutation
 
