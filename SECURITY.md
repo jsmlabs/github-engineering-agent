@@ -58,3 +58,10 @@ Report security defects privately to the repository owner through an established
 ## Assurance and evidence
 
 The project has deterministic offline tests, including temporary Git repositories and simulated GitHub/OpenAI requests. Their observed scope is recorded in [VERIFICATION.md](VERIFICATION.md). They **do not establish** real GitHub authorization behavior, production security, live model compatibility, CI quality, or overall reliability in an arbitrary target repository.
+
+
+## Optional isolated verification and publication gate (development branch)
+
+`verify` accepts only a trusted, preloaded digest-pinned Docker image and an explicit JSON argv array. It uses a read-only checkout mount, `--network=none`, no Linux capabilities, no-new-privileges, an unprivileged container user, read-only root filesystem and bounded CPU, memory, PIDs, execution time and temporary scratch storage. No shell is implicitly introduced. **A Docker daemon remains a trusted host-level dependency; these options are not a sandbox against daemon compromise, kernel vulnerabilities or unsafe host configuration.** Run on a dedicated, rootless/isolated worker. Container image provenance and test correctness remain operator responsibilities.
+
+`publish` requires a matching commit-bound PASS record. The explicit `--approve-unverified --unverified-reason` path permits an auditable exception only when no test report exists; a recorded test failure or mismatched commit can never be overridden by that flag. The verification report is a private, local, *unsigned* record under the existing trusted-filesystem assumption, not an attestation. Report output excerpts can contain sensitive text and must not be broadly shared. `status` reads local state and optionally a remote branch; it never repairs, resets, or mutates state.
