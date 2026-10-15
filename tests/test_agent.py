@@ -76,6 +76,7 @@ class AgentTest(unittest.TestCase):
         with self.assertRaisesRegex(AgentError, "test failure"):
             check_gate(self.planfile, receipt, override=True, reason="Cannot execute tests here")
 
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
     def test_isolated_test_rejects_unsafe_configuration(self):
         image = "trusted/image@sha256:" + "a" * 64
         with self.assertRaisesRegex(AgentError, "sha256"):
@@ -88,6 +89,7 @@ class AgentTest(unittest.TestCase):
             with self.assertRaisesRegex(AgentError, "Docker unavailable"):
                 run_isolated(self.checkout, image, ["python", "-V"], 10)
 
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
     def test_isolated_test_enforces_container_flags(self):
         image = "trusted/image@sha256:" + "a" * 64
         captured = {}
@@ -102,6 +104,7 @@ class AgentTest(unittest.TestCase):
             self.assertIn(option, captured["argv"])
         self.assertEqual(captured["argv"][-3:], [image, "python", "-V"])
 
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
     def test_isolated_test_timeout_fails_closed(self):
         image = "trusted/image@sha256:" + "a" * 64
         with patch("gh_agent.verification.subprocess.run",
