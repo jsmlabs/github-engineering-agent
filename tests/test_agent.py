@@ -552,6 +552,19 @@ class AgentTest(unittest.TestCase):
                     with self.assertRaisesRegex(AgentError, error):
                         Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
 
+    def test_outbound_json_surrogates_fail_before_network(self):
+        from gh_agent.services import json_request
+        with patch("gh_agent.services.build_opener") as opener:
+            with self.assertRaisesRegex(AgentError, "Invalid API request JSON"):
+                json_request("https://api.github.com/repos/example/safe-repo",
+                             token="fake", github=True, payload={"text": "\ud800"})
+            opener.assert_not_called()
+        with patch("gh_agent.services.json_request") as send:
+            with self.assertRaisesRegex(AgentError, "Invalid model context JSON"):
+                Model("key", "name").ask("instructions", {"text": "\ud800"},
+                                         {"type": "object"}, "test")
+            send.assert_not_called()
+
     def test_json_request_and_model_reject_nonfinite_outbound_data(self):
         from gh_agent.services import json_request
         with patch("gh_agent.services.build_opener") as opener:
