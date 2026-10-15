@@ -13,12 +13,32 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 
 **`plan` → `review` → `apply` → `verify` → `publish`**
 
-[**Quick start**](#quick-start) · [**Workflow**](#workflow) · [**Commands**](#command-reference) · [**Safety**](#safety-model) · [**Documentation**](#documentation)
+[**Start in terminal**](#start-in-terminal) · [**Quick start**](#quick-start) · [**Workflow**](#workflow) · [**Commands**](#command-reference) · [**Safety**](#safety-model) · [**Documentation**](#documentation)
 
 </div>
 
 > [!IMPORTANT]
 > **Reference implementation — not a production-validated autonomous engineer.** The agent can create an approved local commit and an **open pull request**. It does **not** approve reviews, merge, or deploy. Offline tests do not establish live OpenAI/GitHub compatibility, target-code correctness, or real Docker isolation. See [Verification](VERIFICATION.md).
+
+## Start in terminal
+
+Install once from **this agent repository** using `python -m pip install .`. Then open a terminal in the **target** repository's clean Git checkout. The installed command is `gh-engineer` (or `python -m gh_agent`).
+
+~~~text
+gh-engineer
+gh-engineer guide
+gh-engineer doctor --repo OWNER/REPO
+~~~
+
+| Command | Simple purpose | Side effects |
+| --- | --- | --- |
+| `gh-engineer` | Show the short home screen | None |
+| `gh-engineer guide` | Show five review-first steps and copyable examples | None |
+| `gh-engineer doctor --repo OWNER/REPO` | Check Python, Git, clean checkout and exact origin; credentials are presence-only | Local inspection; no network |
+| `gh-engineer next --proposal ../issue-123.json` | Suggest a safe next step from exact local proposal/receipt/verification state | Read-only; does not run the step |
+| `gh-engineer status --proposal ../issue-123.json` | Examine the recorded local state | Read-only; `--remote` adds GitHub lookups |
+
+The current checkout is assumed by default; add `--checkout /path/to/repo` when operating elsewhere. `plan`, `apply`, `verify` and `publish` **still require** their separate authorizations. `doctor` cannot prove credentials work or attest to the Git executable or Docker daemon. Use `gh-engineer COMMAND --help` for every option.
 
 ## At a glance
 
@@ -181,6 +201,7 @@ Without both test options, `run` requires an explicit `--approve-unverified` and
 
 | Command | What happens | Explicit control |
 | --- | --- | --- |
+| `guide`, `doctor`, `next` | Short instructions, local preflight and read-only next-step hints | No automatic edits, provider calls or publication |
 | `plan` | Read one issue/allowed source; save private proposal | `--repo`, `--issue`, `--checkout`, `--model`, repeatable `--allowed-file`, `--output`, `--allow-source-upload` |
 | `review` | Display full diff + proposal digest; no mutation | `--checkout`, `--proposal` |
 | `apply` | Local branch, commit and receipt | `--checkout`, `--proposal`, `--approve`, `--expected-sha256` |
@@ -189,7 +210,7 @@ Without both test options, `run` requires an explicit `--approve-unverified` and
 | `publish` | Create-only remote push and open PR (draft by default; `--ready-for-review` optional) | `--checkout`, `--proposal`, `--approve-publish` + PASS or explicit exception |
 | `run` | Approved combined path without review pause | Planning options, `--approve-local`, `--approve-publish`, test plan or explicit exception |
 
-For supported options, run `python -m gh_agent <command> --help`.
+For supported options, run `gh-engineer COMMAND --help`. The CLI assumes `--checkout .` if omitted; explicit `--checkout` paths remain fully supported.
 
 ## Safety model
 
