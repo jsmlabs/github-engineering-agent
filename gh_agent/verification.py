@@ -31,7 +31,7 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
         raise AgentError("Test command must be a bounded JSON string array")
     if type(timeout) is not int or not 1 <= timeout <= _MAX_SECONDS:
         raise AgentError("Test timeout must be between 1 and 300 seconds")
-    if os.name != "posix" or any(ch in str(checkout) for ch in (",", "\\n", "\\r")):
+    if os.name != "posix" or any(ch in str(checkout) for ch in (",", "\n", "\r")):
         raise AgentError("Docker verification requires a POSIX path without mount delimiters")
     import resource  # Only reached on POSIX hosts
     cid_dir = tempfile.TemporaryDirectory(prefix="gh-engineer-cid-")
