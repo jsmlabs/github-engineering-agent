@@ -31,6 +31,8 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
         raise AgentError("Test command must be a bounded JSON string array")
     if type(timeout) is not int or not 1 <= timeout <= _MAX_SECONDS:
         raise AgentError("Test timeout must be between 1 and 300 seconds")
+    if os.name != "posix" or any(ch in str(checkout) for ch in (",", "\\n", "\\r")):
+        raise AgentError("Docker verification requires a POSIX path without mount delimiters")
     cid_dir = tempfile.TemporaryDirectory(prefix="gh-engineer-cid-")
     try:
         cid = Path(cid_dir.name) / "cid"
@@ -47,12 +49,14 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
             image, *argv,
         ]
         try:
-            result = subprocess.run(cmd, stdin=subprocess.DEVNULL,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    timeout=timeout, check=False, env={
-                                        "PATH": os.environ.get("PATH", ""),
-                                        "HOME": os.environ.get("HOME", "/"),
-                                    })
+            with (Path(cid_dir.name) / "stdout").open("wb") as out, \
+                 (Path(cid_dir.name) / "stderr").open("wb") as err:
+                result = subprocess.run(cmd, stdin=subprocess.DEVNULL,
+                                        stdout=out, stderr=err,
+                                        timeout=timeout, check=False, env={
+                                            "PATH": os.environ.get("PATH", ""),
+                                            "HOME": os.environ.get("HOME", "/"),
+                                        })
         except subprocess.TimeoutExpired as exc:
             # A client timeout need not stop the daemon-side container.
             # Attempt cleanup without trusting cleanup failure as success.
@@ -69,8 +73,8 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
         except OSError as exc:
             raise AgentError("Docker unavailable; verification did not run") from exc
         return {"exit_code": result.returncode,
-                "stdout_excerpt": result.stdout[:2048].decode("utf-8", errors="replace"),
-                "stderr_excerpt": result.stderr[:2048].decode("utf-8", errors="replace")}
+                "stdout_excerpt": (Path(cid_dir.name) / "stdout").read_bytes()[:2048].decode("utf-8", errors="replace"),
+                "stderr_excerpt": (Path(cid_dir.name) / "stderr").read_bytes()[:2048].decode("utf-8", errors="replace")}
     finally:
         cid_dir.cleanup()
 
