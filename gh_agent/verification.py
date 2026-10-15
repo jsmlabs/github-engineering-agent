@@ -125,12 +125,14 @@ def check_gate(proposal: Path, receipt: dict, *, override: bool, reason: str | N
     if path.exists():
         from .core import load_json
         report = load_json(path)
-        if (report.get("schema") != 1
+        if (type(report.get("schema")) is not int or report["schema"] != 1
                 or report.get("proposal_sha256") != receipt.get("proposal_sha256")
                 or report.get("commit") != receipt.get("commit")
-                or report.get("branch") != receipt.get("branch")):
+                or report.get("branch") != receipt.get("branch")
+                or type(report.get("exit_code")) is not int
+                or not isinstance(report.get("outcome"), str)):
             raise AgentError("Stale or invalid verification record")
-        if report.get("outcome") == "PASS" and report.get("exit_code") == 0:
+        if report["outcome"] == "PASS" and report["exit_code"] == 0:
             return "PASS"
         # Explicit exception is for unavailable tests, NOT known test failures.
         raise AgentError("Recorded test failure blocks publication")
