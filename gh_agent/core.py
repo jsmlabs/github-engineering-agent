@@ -203,7 +203,18 @@ def validate_content_syntax(path: str, content: str) -> None:
         if path.lower().endswith(".py"):
             ast.parse(content, filename=path)
         elif path.lower().endswith(".json"):
-            json.loads(content)
+            def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+                result: dict[str, Any] = {}
+                for key, value in pairs:
+                    if key in result:
+                        raise ValueError("Duplicate JSON object key")
+                    result[key] = value
+                return result
+
+            def reject_constant(value: str) -> None:
+                raise ValueError("Non-finite JSON number")
+
+            json.loads(content, object_pairs_hook=unique_pairs, parse_constant=reject_constant)
     except (SyntaxError, ValueError, RecursionError) as exc:
         raise AgentError(f"Invalid Python/JSON syntax in {path}") from exc
 
