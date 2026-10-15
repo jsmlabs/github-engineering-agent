@@ -412,6 +412,24 @@ class AgentTest(unittest.TestCase):
         with patch.object(gh, "get", return_value={"number": 5, "state": "closed", "title": "X"}):
             with self.assertRaises(AgentError): gh.issue(5)
 
+    def test_model_rejects_malformed_message_content(self):
+        for malformed in (None, "text", {"type": "output_text"}, 123, [None]):
+            with self.subTest(content=malformed):
+                response = {"status": "completed", "output": [
+                    {"type": "message", "content": malformed},
+                ]}
+                with patch("gh_agent.services.json_request", return_value=response):
+                    with self.assertRaisesRegex(AgentError, "Malformed model message content"):
+                        Model("key", "name").ask("instructions", {"a": 1}, {"type": "object"}, "test")
+
+    def test_model_accepts_single_structured_message(self):
+        response = {"status": "completed", "output": [
+            {"type": "reasoning", "content": None},
+            {"type": "message", "content": [{"type": "output_text", "text": '{"ok": true}'}]},
+        ]}
+        with patch("gh_agent.services.json_request", return_value=response):
+            self.assertEqual(Model("key", "name").ask("instructions", {}, {"type": "object"}, "test"), {"ok": True})
+
     def test_model_incomplete_is_blocked(self):
         with patch("gh_agent.services.json_request", return_value={"status": "incomplete", "output": []}):
             with self.assertRaises(AgentError):
