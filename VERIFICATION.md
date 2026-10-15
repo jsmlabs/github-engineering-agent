@@ -70,6 +70,10 @@ The default tests use temporary Git repositories and test doubles for network/mo
 
 Historic results are preserved as historical evidence, **not** as current measurements or independent proof of the latest SHA.
 
+## Unreleased engineering-capability validation
+
+The current implementation adds explicitly approved new files/directories and configuration/workflow edits, expanded bounded changes, one model call per plan, a writable disposable verification workspace and opt-in review-ready PRs. The historic tests and workflow results above apply **only** to their listed commits, not automatically to these changes. The first actual CI result for the new head must be recorded after observation; authenticated provider and real Docker execution remain separate unverified capabilities.
+
 ## Remaining verification gaps
 
 | Capability | Current evidence status | Required validation before relying on it |

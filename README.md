@@ -2,9 +2,9 @@
 
 # GitHub Engineering Agent
 
-**From an issue to a reviewable draft PR — with explicit control at every step.**
+**From an issue to a reviewable pull request — with explicit control at every step.**
 
-A lightweight Python CLI for scoped AI-generated edits, deterministic validation, local approval, and draft-only GitHub publication.
+A lightweight Python CLI for scoped AI-generated edits, deterministic validation, local approval, and draft or review-ready GitHub publication.
 
 [![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)
@@ -18,13 +18,13 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 </div>
 
 > [!IMPORTANT]
-> **Reference implementation — not a production-validated autonomous engineer.** The agent can create an approved local commit and an **open draft pull request**. It does **not** approve reviews, merge, or deploy. Offline tests do not establish live OpenAI/GitHub compatibility, target-code correctness, or real Docker isolation. See [Verification](VERIFICATION.md).
+> **Reference implementation — not a production-validated autonomous engineer.** The agent can create an approved local commit and an **open pull request**. It does **not** approve reviews, merge, or deploy. Offline tests do not establish live OpenAI/GitHub compatibility, target-code correctness, or real Docker isolation. See [Verification](VERIFICATION.md).
 
 ## At a glance
 
-| 🔒 Explicit scope | 🧾 Verifiable changes | 🔀 Draft-only delivery |
+| 🔒 Explicit scope | 🧾 Verifiable changes | 🔀 Scoped PR delivery |
 | :--- | :--- | :--- |
-| One **open issue** and **1–5 existing tracked files** chosen by the operator. | Review a full diff and exact SHA-256 before authorizing a local commit. | A separate approval gates the create-only push and **open draft PR**. |
+| One **open issue** and **1–12 exact existing/new paths** chosen by the operator. | Review a full diff and exact SHA-256 before authorizing a local commit. | A separate approval gates the create-only push and **open PR**. |
 | Model-generated text cannot expand permissions. | Verification is bound to a specific proposal and commit. | No automatic review approval, merge, or deployment. |
 
 **Choose your mode**
@@ -34,7 +34,7 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 | Human inspects generated proposal before edits | **Yes** — `review` + exact-digest approval | **No** — permissions granted up front |
 | Operator-controlled file scope | Required | Required |
 | Testing before publication | PASS report, or explicit no-test exception | Same gate |
-| Maximum remote side effect | **Open draft PR** | **Open draft PR** |
+| Maximum remote side effect | **Open PR** | **Open PR** |
 
 ## Workflow
 
@@ -47,7 +47,7 @@ flowchart TD
     A -->|Yes| L["3. APPLY · Local commit"]
     L --> V["4. VERIFY · Operator-selected test"]
     V --> G{"Publication gate"}
-    G -->|PASS| D["5. PUBLISH · Open draft PR"]
+    G -->|PASS| D["5. PUBLISH · Open PR"]
     G -->|No test report + explicit exception| D
     G -->|FAIL or stale| BLOCK["Stop · Publication blocked"]
     D --> H["Independent human review + target CI"]
@@ -83,7 +83,7 @@ The installed entry point is also `gh-engineer`. The runtime uses Python's stand
 
 ### 3. Plan, inspect and approve
 
-Replace the placeholders below with a real open issue, operator-approved **existing tracked** paths, an accessible model and private absolute paths.
+Replace the placeholders below with a real open issue, operator-approved **existing or new** paths, an accessible model and private absolute paths.
 
 ~~~bash
 python -m gh_agent plan \
@@ -100,7 +100,7 @@ python -m gh_agent review \
   --proposal /private/issue-123.json
 ~~~
 
-`plan` makes **two** model requests on a successful path and writes a private proposal (schema **2**) without printing the generated source diff. `review` prints the complete diff and the proposal file's SHA-256. Protect review transcripts.
+`plan` makes **one** model request on a successful path and writes a private proposal (schema **2**) without printing the generated source diff. `review` prints the complete diff and the proposal file's SHA-256. Protect review transcripts.
 
 ~~~bash
 python -m gh_agent apply \
@@ -112,7 +112,7 @@ python -m gh_agent apply \
 
 `apply` creates a new local `agent/issue-<issue>-<base-sha-prefix>` branch and commit, validates the committed bytes, and writes a private `.applied.json` receipt. **The approval digest binds the reviewed proposal, but is not a digital signature against a malicious local host.**
 
-### 4. Verify the commit and publish a draft
+### 4. Verify the commit and publish a pull request
 
 Use a trusted, **already available** digest-pinned Docker image with a test command **you choose**. Verification requires a trusted POSIX host and isolated Docker daemon; native Windows Docker verification is **unsupported**.
 
@@ -130,12 +130,14 @@ python -m gh_agent publish \
   --approve-publish
 ~~~
 
-A commit-bound verification **PASS** allows publication. A recorded **FAIL** or stale report **always blocks** it. Publishing rechecks the issue, base SHA, files and remote branch; the push uses a **create-only lease** and the resulting **open draft PR** is verified.
+Add `--ready-for-review` to `publish` or `run` only when the operator specifically wants an **open review-ready PR** rather than the default draft. This does not approve, merge or deploy code.
+
+A commit-bound verification **PASS** allows publication. The isolated test command runs against a **writable disposable copy** of the checkout; the original remains untouched. A recorded **FAIL** or stale report **always blocks** it. Publishing rechecks the issue, base SHA, files and remote branch; the push uses a **create-only lease** and the resulting **open PR** is verified.
 
 <details>
 <summary><strong>When testing is unavailable: explicit no-test exception</strong></summary>
 
-Only if **no verification report exists**, the operator can explicitly accept the risk of an unverified draft. A reason of **12–300 characters** is required; a known test failure cannot be overridden.
+Only if **no verification report exists**, the operator can explicitly accept the risk of an unverified pull request. A reason of **12–300 characters** is required; a known test failure cannot be overridden.
 
 ~~~bash
 python -m gh_agent publish \
@@ -152,7 +154,7 @@ python -m gh_agent publish \
 <summary><strong>Advanced: `run` without proposal-specific human review</strong></summary>
 
 > [!WARNING]
-> `run` may commit and publish **unreviewed AI-generated changes** as a draft. Use it only with explicit source, local and remote authorizations, a constrained checkout and independent downstream review. It cannot merge or deploy.
+> `run` may commit and publish **unreviewed AI-generated changes** as a pull request. Use it only with explicit source, local and remote authorizations, a constrained checkout and independent downstream review. It cannot merge or deploy.
 
 ~~~bash
 python -m gh_agent run \
@@ -182,7 +184,7 @@ Without both test options, `run` requires an explicit `--approve-unverified` and
 | `apply` | Local branch, commit and receipt | `--checkout`, `--proposal`, `--approve`, `--expected-sha256` |
 | `verify` | Test exact commit in operator-configured Docker | `--checkout`, `--proposal`, `--image`, `--command-json`, optional `--timeout` |
 | `status` | Read-only local recovery, optional remote check | `--checkout`, `--proposal`, optional `--remote` |
-| `publish` | Create-only remote push and open draft PR | `--checkout`, `--proposal`, `--approve-publish` + PASS or explicit exception |
+| `publish` | Create-only remote push and open PR (draft by default; `--ready-for-review` optional) | `--checkout`, `--proposal`, `--approve-publish` + PASS or explicit exception |
 | `run` | Approved combined path without review pause | Planning options, `--approve-local`, `--approve-publish`, test plan or explicit exception |
 
 For supported options, run `python -m gh_agent <command> --help`.
@@ -191,14 +193,14 @@ For supported options, run `python -m gh_agent <command> --help`.
 
 | Boundary | Enforced contract |
 | --- | --- |
-| **Files** | 1–5 distinct, explicitly approved, existing tracked UTF-8 files; protected paths/symlinks rejected |
-| **Budgets** | 20,000 bytes per file; 55,000 total; 400 changed lines; 85,000-byte proposal diff |
-| **Inputs** | One open issue, bounded body (6,000 characters), required revision timestamp; up to 1,000 eligible tracked candidate files |
+| **Files** | 1–12 explicitly scoped existing/new UTF-8 files; new directories, lock/config and named `.github/workflows` files supported; secrets and symlinks denied |
+| **Budgets** | 32,000 bytes per file; 96,000 total; 1,600 changed lines; 180,000-byte proposal diff |
+| **Inputs** | One open issue, bounded body (12,000 characters), required revision timestamp; exact allowlist instead of candidate-tree limit |
 | **Validation** | Original SHA-256, allowed paths, Python/JSON syntax, strict JSON parsing (duplicate keys, overflowed numbers and malformed Unicode), source-secret heuristics, Git staged/committed blob checks |
 | **Model** | No execution of model-proposed commands; refuse unexpected/refused/incomplete structured responses |
-| **Remote** | Exact repo/ref identity, stale-state rechecks, collision refusal, open draft PR only |
+| **Remote** | Exact repo/ref identity, stale-state rechecks, collision refusal, draft by default or `--ready-for-review` |
 | **Verification** | Commit-bound record; explicit no-test exception only when there is no test report |
-| **Excluded** | Automatic PR approval, merge, deployment, workflow edits, arbitrary commands, new/deleted files |
+| **Excluded** | Automatic PR approval, merge, deployment, arbitrary model commands, file deletion and renames |
 
 > [!CAUTION]
 > Strict validation does **not** establish generated-code correctness, comprehensive DLP, safe Git/Docker dependencies, vendor compatibility or production readiness. Independent security review and target-project tests are required. Read the [security model](SECURITY.md) and [verification evidence](VERIFICATION.md).
@@ -250,7 +252,7 @@ Remote push and PR creation are **not atomic**; a pushed branch may exist withou
 
 <div align="center">
 
-**Scoped changes. Explicit consent. Verifiable draft delivery.**
+**Scoped changes. Explicit consent. Verifiable PR delivery.**
 
 <sub>Reference implementation · No automatic merge or deployment</sub>
 

@@ -14,7 +14,7 @@ flowchart TB
     C --> V["gh_agent/verification.py: Docker checks + publish gate"]
     C --> L[("Private proposal, receipt, verification JSON outside checkout")]
     P --> G[("Trusted Git + local target checkout")]
-    S --> GH[("GitHub issue, refs, draft PR")]
+    S --> GH[("GitHub issue, refs, draft/ready PR")]
     S --> AI[("Responses Structured Outputs")]
     V --> D[("Trusted Docker daemon + operator image")]
     G --> GH
@@ -51,7 +51,7 @@ flowchart LR
     F -->|FAIL/stale| STOP
     F -->|No report + explicit exception| G
     G --> H["Confirm remote SHA"]
-    H --> I["Create or reconcile open draft PR"]
+    H --> I["Create or reconcile open PR"]
     I --> J["Independent human review + CI"]
 ~~~
 
@@ -61,11 +61,11 @@ The operator can call `status` at any time to inspect local recovery state (and 
 
 1. Require `--allow-source-upload`, one target `owner/name`, an open numbered issue, an exact operator-specified file allowlist and an output path outside the checkout.
 2. Verify the clean target worktree, matching single `origin`, current default/base ref and tracked source eligibility; reject likely sensitive content and oversize input.
-3. Model request **one** chooses a subset of pre-authorized paths; reject any escape or duplicate.
-4. Model request **two** returns complete UTF-8 replacement text and original SHA-256 for the chosen files; reject malformed output, unchanged edits, unsafe paths, invalid Python/JSON syntax or exceeded budgets.
+3. Send explicitly approved paths and their full source contents (empty for new paths) to a single structured-output model request.
+4. Accept only changed-file replacements within that allowlist, with exact original SHA-256, valid UTF-8, syntax and bounded resources; no model commands or deletions.
 5. Exclusively create a private **schema-2** proposal; do not print generated source during planning.
 
-A successful plan uses two model calls; a model-proposed empty edit list is **not** accepted as a successful no-op. Model text never causes direct command execution.
+A successful plan uses one model call; a model-proposed empty edit list is **not** accepted as a successful no-op. Model text never causes direct command execution.
 
 ### 2. `review` and `apply` - explicit local mutation boundary
 
@@ -77,11 +77,11 @@ The receipt captures proposal digest, repo, issue, base/branch/commit, changed f
 
 ### 3. `verify` and `status` - recorded evidence and read-only inspection
 
-`verify` checks proposal and receipt identity, clean checkout/branch and exact approved commit. On a supported POSIX host it invokes Docker with a trusted, already available digest-pinned image and explicit argv array. The checkout is mounted read-only with no container network, reduced privileges and bounded resources. A private `<proposal>.verified.json` is exclusively written for PASS or FAIL (schema **1**) and bound to the exact proposal SHA, branch and commit.
+`verify` checks proposal and receipt identity, clean checkout/branch and exact approved commit. On a supported POSIX host it invokes Docker with a trusted, already available digest-pinned image and explicit argv array. A disposable checkout copy is mounted writable with no container network, reduced privileges and bounded resources. A private `<proposal>.verified.json` is exclusively written for PASS or FAIL (schema **1**) and bound to the exact proposal SHA, branch and commit.
 
 The report records exit code, image, argv and bounded output excerpts. It is **not signed** and does not attest to the target application's correctness. A test failure is never overridden by publication's no-test exception.
 
-`status` reads receipt, local branch/HEAD/cleanliness and verification gate; `--remote` can additionally compare the exact remote ref and inspect a corresponding draft PR. It does not reset, repair, retry, create or push anything.
+`status` reads receipt, local branch/HEAD/cleanliness and verification gate; `--remote` can additionally compare the exact remote ref and inspect a corresponding PR. It does not reset, repair, retry, create or push anything.
 
 ### 4. `publish` - remote effect with reconciliation
 
@@ -89,7 +89,7 @@ The report records exit code, image, argv and bounded output excerpts. It is **n
 2. Require an exact recorded **PASS** with zero exit code; or, **only if no report exists**, explicitly accept `--approve-unverified` with a 12–300-character justification.
 3. Re-read repository metadata and open issue; reject a moved default branch, changed issue timestamp or different remote base SHA.
 4. Check the exact remote branch ref. If absent, push using `--force-with-lease=refs/heads/<branch>:` as a **create-only** lease, not a force overwrite. Re-read and verify its exact SHA.
-5. Recheck base and issue after push. Search for an existing matching PR; reject closed, ambiguous, malformed or conflicting results. Create or verify **only an open draft PR** whose head matches the approved commit.
+5. Recheck base and issue after push. Search for an existing matching PR; reject closed, ambiguous, malformed or conflicting results. Create or verify an open draft PR by default, or an open review-ready PR when `--ready-for-review` is explicitly supplied, whose head matches the approved commit.
 
 `publish` does not merge or deploy. A GitHub API timeout is not proof that a remote operation failed; reconciliation inspects current state rather than blindly replaying writes.
 
@@ -100,9 +100,9 @@ The report records exit code, image, argv and bounded output excerpts. It is **n
 | Proposal | Private `<name>.json` outside checkout; proposal **schema 2** |
 | Apply receipt | Private `<name>.json.applied.json`, created once; receipt **schema 2** |
 | Verification report | Private `<name>.json.verified.json`, created once; report **schema 1** |
-| Allowed source | 1–5 existing tracked UTF-8 files, max 20,000 bytes/file, 55,000 bytes aggregate |
-| Candidate tree | At most 1,000 eligible tracked files |
-| Diff | Max 400 changed lines, 85,000 bytes in proposal review diff |
+| Allowed source | 1–12 explicitly approved existing/new UTF-8 files, max 32,000 bytes/file, 96,000 bytes aggregate |
+| Candidate tree | No fixed tree-size ceiling; exact allowlist and context budget bound model input |
+| Diff | Max 1,600 changed lines, 180,000 bytes in proposal review diff |
 | Issue | Open issue (not PR), bounded title and 6,000-character body, required revision timestamp |
 | Git/HTTP | Exact SHA/branch checks and Git remote identity; allowlisted HTTPS endpoints with size/time limits |
 | JSON | Strict duplicate-key, non-finite/overflow-number and invalid-Unicode rejection across local state, model content and API responses; local state reads capped at 256,000 bytes |
@@ -127,8 +127,8 @@ JSON source parsing and Python AST validation are **syntax checks** only. There 
 
 ## Supported vs. intentionally unsupported
 
-**Supported:** bounded scoped proposals, source-upload consent, human digest approval, local commits, optional isolated tests, explicit missing-test exception, remote create-only draft PR, and read-only recovery.
+**Supported:** explicitly scoped code/configuration/workflow replacements and new files/directories, one-call plans, reviewed commits, writable disposable isolated tests, draft or opted-in review-ready PRs, bounded source disclosure, and read-only recovery.
 
-**Unsupported:** new/deleted files, broad or hidden file edits, workflow modifications by the agent, model-suggested command execution, autonomous reviews/merges/deployments, background operation, target-test discovery, full secret detection, cryptographic attestation, and automatic recovery from arbitrary partial failures.
+**Unsupported:** file deletion, rename/move operations, unapproved/unknown hidden paths, model-suggested command execution, autonomous reviews/merges/deployments, background jobs, automatic target-test discovery, complete secret detection, cryptographic attestation and generalized recovery.
 
 Use [Verification](../VERIFICATION.md) for observed results, and [Security](../SECURITY.md) for operational safeguards and incident handling.
