@@ -352,6 +352,11 @@ def run_auto(args) -> None:
     """Bounded autonomous draft PR path; all three capabilities explicitly opted in."""
     if not (args.allow_source_upload and args.approve_local and args.approve_publish):
         raise AgentError("Autonomous draft requires --allow-source-upload --approve-local --approve-publish")
+    # A PR can trigger GitHub Actions before any reviewer inspects its diff.
+    # Workflow mutations therefore require the proposal-specific review gate.
+    if any(isinstance(p, str) and p.startswith(".github/workflows/")
+           for p in (getattr(args, "allowed_file", None) or [])):
+        raise AgentError("Autonomous run cannot edit GitHub Actions workflows; use plan, review and exact-digest apply")
     image = getattr(args, "test_image", None)
     command = getattr(args, "test_command_json", None)
     if bool(image) != bool(command):
