@@ -616,6 +616,26 @@ class AgentTest(unittest.TestCase):
         }):
             self.assertEqual(gh.metadata()["default_branch"], "main")
 
+    def test_repository_metadata_requires_safe_branch_and_boolean_archive(self):
+        gh = GitHub("test-token", "example/safe-repo")
+        valid = {"full_name": "example/safe-repo", "archived": False,
+                 "default_branch": "release/2026.10"}
+        with patch("gh_agent.services.json_request", return_value=valid):
+            self.assertEqual(gh.metadata()["default_branch"], "release/2026.10")
+        for bad in (None, False, 1, "", "-main", "main\\nunsafe", "main..evil",
+                    "main//branch", "main.lock", "feature/", "main@{1}"):
+            with self.subTest(default_branch=bad):
+                with patch("gh_agent.services.json_request",
+                           return_value={**valid, "default_branch": bad}):
+                    with self.assertRaisesRegex(AgentError, "Invalid default branch"):
+                        gh.metadata()
+        for bad in (None, 0, "false", [], True):
+            with self.subTest(archived=bad):
+                with patch("gh_agent.services.json_request",
+                           return_value={**valid, "archived": bad}):
+                    with self.assertRaisesRegex(AgentError, "Repository identity mismatch"):
+                        gh.metadata()
+
     def test_github_refuses_issue_as_pr_and_closed(self):
         gh = GitHub("test-token", "example/safe-repo")
         with patch.object(gh, "get", return_value={"number": 5, "state": "open", "title": "X", "pull_request": {}}):
@@ -632,6 +652,20 @@ class AgentTest(unittest.TestCase):
                 gh.issue(1)
         with patch.object(gh, "get", return_value=valid):
             self.assertEqual(gh.issue(1)["number"], 1)
+
+    def test_github_issue_body_requires_null_or_string(self):
+        gh = GitHub("test-token", "example/safe-repo")
+        valid = {"number": 7, "state": "open", "title": "Task",
+                 "updated_at": "2026-10-16T00:00:00Z"}
+        for bad in (False, 0, [], {}):
+            with self.subTest(body=bad):
+                with patch.object(gh, "get", return_value={**valid, "body": bad}):
+                    with self.assertRaisesRegex(AgentError, "Invalid issue fields"):
+                        gh.issue(7)
+        for good in (None, "", "Description"):
+            with self.subTest(body=good):
+                with patch.object(gh, "get", return_value={**valid, "body": good}):
+                    self.assertEqual(gh.issue(7).get("body"), good)
 
     def test_model_rejects_malformed_message_content(self):
         for malformed in (None, "text", {"type": "output_text"}, 123, [None]):

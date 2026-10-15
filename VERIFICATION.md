@@ -7,19 +7,19 @@
 
 ## Latest verified baseline
 
-**Verified baseline: merged PR #18 on `main`, 2026-10-15.**
+**Verified baseline: merged PR #19 on `main`, 2026-10-15.**
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`98a2139c4474be54fcdb3f462ebf8834e6c6cc69`](https://github.com/jsmlabs/github-engineering-agent/commit/98a2139c4474be54fcdb3f462ebf8834e6c6cc69) |
-| Offline workflow on that commit | [Run 38820648522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820648522): **completed / success** |
+| Authoritative `main` commit | [`00e5db16842be3034831cb1b7540b9507f76c2ed`](https://github.com/jsmlabs/github-engineering-agent/commit/00e5db16842be3034831cb1b7540b9507f76c2ed) |
+| Offline workflow on that commit | [Run 38821668140](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821668140): **completed / success** |
 | Matrix | **6/6 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **74 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Concrete test observation | Ubuntu/Python 3.13 job: **77 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
 | Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
 | Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
 | Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
 
-The snapshot SHA and workflow identify the last merged feature baseline **before this bugfix PR**. New bugfix results must be verified independently; do not transfer CI success between commits.
+The snapshot SHA and workflow identify the last verified merged baseline before the present enhancement PR. The expanded Python 3.12 job and new regression tests must be evaluated on their own exact commit; do not transfer success between commits.
 
 ## Recent change evidence
 
@@ -32,6 +32,7 @@ The snapshot SHA and workflow identify the last merged feature baseline **before
 | [#16 README visual refresh](https://github.com/jsmlabs/github-engineering-agent/pull/16) | [38813390691](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38813390691), **6/6 pass** | [38813621301](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38813621301), **success** on `1001bbf3390f171186d8feb4ebbaf49463530492` | Documentation-only presentation improvements |
 | [#17 JSON hardening](https://github.com/jsmlabs/github-engineering-agent/pull/17) | [38814929977](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38814929977), **6/6 pass** | [38815112621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38815112621), **success** on `45d49e3436cc53cf8cbc38df43463ba394d09bcd` | Offline regressions including overflowed numbers, Unicode validation and bounded state JSON |
 | [#18 expanded scope](https://github.com/jsmlabs/github-engineering-agent/pull/18) | [38820016938](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820016938), **6/6 pass** | [38820648522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820648522), **success** on `98a2139c4474be54fcdb3f462ebf8834e6c6cc69` | Offline 74-test suite includes new file, workflow-review gate, isolation and PR-readiness regressions |
+| [#19 type and transport hardening](https://github.com/jsmlabs/github-engineering-agent/pull/19) | [38821493237](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821493237), **6/6 pass** | [38821668140](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38821668140), **success** on `00e5db16842be3034831cb1b7540b9507f76c2ed` | Offline regressions for exact verification exit-code types, issue number typing and disconnected API responses |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
@@ -48,7 +49,7 @@ python -m gh_agent --help
 
 `scripts/verify.py` runs: (1) `python -m compileall -q gh_agent tests`, (2) verbose unittest discovery, then (3) `python -m gh_agent --help`. It exits nonzero on a failed command.
 
-The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The configured GitHub Actions workflow runs these checks on **six** OS/Python combinations, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout.
+The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The proposed GitHub Actions workflow is configured for **seven** jobs: the original six OS/Python combinations plus Ubuntu/Python 3.12, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout. The additional job is not counted as verified until its exact-commit run succeeds.
 
 ### Evidence classification
 
