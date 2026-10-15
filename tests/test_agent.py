@@ -155,6 +155,17 @@ class AgentTest(unittest.TestCase):
                 require_repo(value)
         self.assertEqual(require_repo("example/safe-repo"), "example/safe-repo")
 
+    def test_status_remote_rejects_missing_receipt_identity(self):
+        receipt_path = Path(str(self.planfile) + ".applied.json")
+        receipt_path.write_text(json.dumps({
+            "schema": 2, "commit": self.base, "branch": "main",
+        }), encoding="utf-8")
+        with redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(AgentError, "Remote status requires valid"):
+                cli.status(argparse.Namespace(checkout=str(self.checkout),
+                                              proposal=str(self.planfile), remote=True))
+        self.assertEqual(git(self.checkout, "status", "--porcelain"), "")
+
     def test_path_escape_and_protected(self):
         for p in ["../foo.py", ".env", ".github/workflows/ci.yml", "node_modules/a.js", "src/../../a.py", "/tmp/a.py", "src/.hidden/a.py", "credentials/a.py", "app.exe", "Dockerfile"]:
             with self.subTest(p=p), self.assertRaises(AgentError):
@@ -488,6 +499,47 @@ class AgentTest(unittest.TestCase):
         ]}
         with patch("gh_agent.services.json_request", return_value=response):
             self.assertEqual(Model("key", "name").ask("instructions", {}, {"type": "object"}, "test"), {"ok": True})
+
+    def test_model_rejects_unexpected_output_items(self):
+        valid = {"type": "message", "content": [{"type": "output_text", "text": '{"ok": true}'}]}
+        for extra in (
+            None,
+            {"type": "function_call", "name": "unsafe", "arguments": "{}"},
+            {"type": "unexpected"},
+        ):
+            with self.subTest(extra=extra):
+                response = {"status": "completed", "output": [extra, valid]}
+                with patch("gh_agent.services.json_request", return_value=response):
+                    with self.assertRaisesRegex(AgentError, "model output item"):
+                        Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
+
+    def test_model_rejects_non_text_message_parts_and_incomplete_message(self):
+        for message, error in (
+            ({"type": "message", "content": [
+                {"type": "output_text", "text": '{"ok": true}'},
+                {"type": "input_text", "text": "unexpected"}]}, "Unexpected model message content"),
+            ({"type": "message", "status": "in_progress", "content": [
+                {"type": "output_text", "text": '{"ok": true}'}]}, "Model message incomplete"),
+        ):
+            with self.subTest(error=error):
+                with patch("gh_agent.services.json_request", return_value={
+                    "status": "completed", "output": [message],
+                }):
+                    with self.assertRaisesRegex(AgentError, error):
+                        Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
+
+    def test_json_request_and_model_reject_nonfinite_outbound_data(self):
+        from gh_agent.services import json_request
+        with patch("gh_agent.services.build_opener") as opener:
+            with self.assertRaisesRegex(AgentError, "Invalid API request JSON"):
+                json_request("https://api.github.com/repos/example/safe-repo",
+                             token="fake", github=True, payload={"value": float("nan")})
+            opener.assert_not_called()
+        with patch("gh_agent.services.json_request") as send:
+            with self.assertRaisesRegex(AgentError, "Invalid model context JSON"):
+                Model("key", "name").ask("instructions", {"value": float("inf")},
+                                         {"type": "object"}, "test")
+            send.assert_not_called()
 
     def test_model_rejects_ambiguous_structured_json(self):
         for payload in (
