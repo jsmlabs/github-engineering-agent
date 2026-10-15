@@ -9,7 +9,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 ### Expanded engineering scope (unreleased)
 
 - Permit explicitly allowlisted creation of new files and directories and updates to named workflows, build configuration and dependency/lockfiles while retaining path/secret checks and scoped staging. Workflow changes require the reviewed `plan → review → apply` flow; unreviewed `run` blocks workflow scopes before planning.
-- Raise bounded plans from five to twelve files, 20 KB to 32 KB/file, 55 KB to 96 KB aggregate and 400 to 1,600 changed lines; remove the fixed candidate-file tree ceiling.
+- Raise bounded plans from five to twelve files, 20 KB to 32 KB/file, 55 KB to 96 KB aggregate and 400 to 1,600 changed lines; raise the local state JSON read cap to 512,000 bytes and remove the fixed candidate-file tree ceiling.
 - Remove one redundant model selection call per plan; retain the existing proposal/receipt schema and deterministic validation.
 - Run isolated tests in a writable disposable checkout copy, preserving the operator checkout, restricted Docker privileges and offline networking.
 - Allow opt-in review-ready PR creation with `--ready-for-review`; keep draft creation as default and preserve independent remote verification.
@@ -17,6 +17,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ### Security and input validation
 
+- Reject boolean or malformed test-report exit codes rather than treating JSON `false` as numeric zero. Require true integer issue numbers in GitHub API responses and normalize disconnected HTTP transports to controlled errors; add focused regression tests.
 - Reject invalid Unicode on outbound API/model JSON paths with controlled errors before network access; add a regression test.
 - Harden shared JSON decoding against finite-syntax overflow (`1e999`) and unpaired Unicode surrogates; cap proposal/receipt/verification file reads at 256,000 bytes and add targeted regressions. Valid JSON and application schemas are unchanged.
 

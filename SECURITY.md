@@ -36,7 +36,7 @@ The agent **does not** merge, approve PR reviews, deploy, delete files, create u
 
 **Scope.** GitHub Actions workflow changes require the reviewed `plan → review → apply` path and are rejected before side effects in high-trust `run`, because even a draft PR may trigger CI. All model-editable paths must be repository-relative and explicitly allowlisted by the operator. Existing tracked or new regular UTF-8 files, including new directories, lock/configuration files and explicitly named `.github/workflows/*.yml`/`.yaml`, are allowed within resource budgets. Secret-bearing paths, unknown hidden files, symlinks, path escapes and unapproved changes are rejected. Proposed edits are complete file replacements; deletions, moves and arbitrary commands remain unavailable.
 
-**JSON and model responses.** Proposal/receipt/verification records, remote API JSON, generated JSON source and structured model output reject duplicate object keys (including nested duplicates), non-finite constants, overflowed numbers and unpaired Unicode surrogates. Local state JSON reads are limited to 256,000 bytes. Malformed model items, unexpected message parts, explicit refusals and incomplete messages fail closed. The model has no tool-execution authority. These controls do not prove semantics or exclude all prompt-injection effects.
+**JSON and model responses.** Proposal/receipt/verification records, remote API JSON, generated JSON source and structured model output reject duplicate object keys (including nested duplicates), non-finite constants, overflowed numbers and unpaired Unicode surrogates. Local state JSON reads are limited to 512,000 bytes. Malformed model items, unexpected message parts, explicit refusals and incomplete messages fail closed. The model has no tool-execution authority. These controls do not prove semantics or exclude all prompt-injection effects.
 
 **Data disclosure.** `plan` sends the issue title/body and full content of explicitly selected source files to the configured OpenAI endpoint. Review content may appear in terminal transcripts. Protect proposal JSON, apply receipts, verification reports, terminal output and backups. The source scanner only detects **selected common** credential patterns and control characters; it is not DLP. Classify inputs **before** permitting source upload.
 
@@ -62,7 +62,7 @@ The test command is **operator-selected**, not discovered or proposed for execut
 
 ### Publication gate
 
-A matching, commit-bound `.verified.json` with outcome **PASS** and exit code zero permits publication. **FAIL**, malformed, or stale records block it. Only when **no report exists**, `--approve-unverified --unverified-reason "..."` can authorize a documented exception; the reason must have 12–300 characters. This is an explicit acceptance of missing test evidence, not a claim of safety. The verification report is an unsigned local artifact; a malicious host can tamper with it.
+A matching, commit-bound `.verified.json` with outcome **PASS** and a genuine integer exit code of zero permits publication; boolean or malformed exit codes fail closed. **FAIL**, malformed, or stale records block it. Only when **no report exists**, `--approve-unverified --unverified-reason "..."` can authorize a documented exception; the reason must have 12–300 characters. This is an explicit acceptance of missing test evidence, not a claim of safety. The verification report is an unsigned local artifact; a malicious host can tamper with it.
 
 ## Failure response and recovery
 

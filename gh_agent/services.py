@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -41,7 +42,7 @@ def json_request(url: str, *, token: str, payload: dict | None = None, github: b
             if len(blob) > max_bytes:
                 raise AgentError("API response size exceeded")
             return strict_json_loads(blob)
-    except (HTTPError, URLError, TimeoutError, ValueError, RecursionError) as exc:
+    except (HTTPError, URLError, TimeoutError, OSError, HTTPException, ValueError, RecursionError) as exc:
         # Response body may contain private issue content: never print it.
         if isinstance(exc, HTTPError):
             raise AgentError(f"API request failed: HTTP {exc.code}") from exc
@@ -74,7 +75,8 @@ class GitHub:
         if type(number) is not int or number < 1:
             raise AgentError("Issue number must be positive")
         x = self.get(f"issues/{number}")
-        if not isinstance(x, dict) or "pull_request" in x or x.get("state") != "open" or x.get("number") != number:
+        if (not isinstance(x, dict) or "pull_request" in x or x.get("state") != "open"
+                or type(x.get("number")) is not int or x["number"] != number):
             raise AgentError("Expected open issue (not a pull request)")
         if not isinstance(x.get("title"), str) or len(x["title"]) > 250 or not isinstance(x.get("body") or "", str):
             raise AgentError("Invalid issue fields")

@@ -7,19 +7,19 @@
 
 ## Latest verified baseline
 
-**Verified baseline: integrated security fixes in `main`, PR #17.**
+**Verified baseline: merged PR #18 on `main`, 2026-10-15.**
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`45d49e3436cc53cf8cbc38df43463ba394d09bcd`](https://github.com/jsmlabs/github-engineering-agent/commit/45d49e3436cc53cf8cbc38df43463ba394d09bcd) |
-| Offline workflow on that commit | [Run 38815112621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38815112621): **completed / success** |
+| Authoritative `main` commit | [`98a2139c4474be54fcdb3f462ebf8834e6c6cc69`](https://github.com/jsmlabs/github-engineering-agent/commit/98a2139c4474be54fcdb3f462ebf8834e6c6cc69) |
+| Offline workflow on that commit | [Run 38820648522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820648522): **completed / success** |
 | Matrix | **6/6 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **67 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Concrete test observation | Ubuntu/Python 3.13 job: **74 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
 | Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
 | Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
 | Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
 
-The snapshot SHA and workflow identify the **last integrated `main`** before PR #18. PR #18's new capability boundaries are **not** established by the previous main-branch run and require independent head-sha testing and review.
+The snapshot SHA and workflow identify the last merged feature baseline **before this bugfix PR**. New bugfix results must be verified independently; do not transfer CI success between commits.
 
 ## Recent change evidence
 
@@ -31,6 +31,7 @@ The snapshot SHA and workflow identify the **last integrated `main`** before PR 
 | [#15 documentation refresh](https://github.com/jsmlabs/github-engineering-agent/pull/15) | [38812066285](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38812066285), **6/6 pass** | [38812223896](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38812223896), **success** on `48eed2ab94909e0232937b3db3ed6351351a570e` | Documentation-only structure and navigation alongside unchanged source tests |
 | [#16 README visual refresh](https://github.com/jsmlabs/github-engineering-agent/pull/16) | [38813390691](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38813390691), **6/6 pass** | [38813621301](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38813621301), **success** on `1001bbf3390f171186d8feb4ebbaf49463530492` | Documentation-only presentation improvements |
 | [#17 JSON hardening](https://github.com/jsmlabs/github-engineering-agent/pull/17) | [38814929977](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38814929977), **6/6 pass** | [38815112621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38815112621), **success** on `45d49e3436cc53cf8cbc38df43463ba394d09bcd` | Offline regressions including overflowed numbers, Unicode validation and bounded state JSON |
+| [#18 expanded scope](https://github.com/jsmlabs/github-engineering-agent/pull/18) | [38820016938](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820016938), **6/6 pass** | [38820648522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38820648522), **success** on `98a2139c4474be54fcdb3f462ebf8834e6c6cc69` | Offline 74-test suite includes new file, workflow-review gate, isolation and PR-readiness regressions |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
@@ -73,9 +74,9 @@ The default tests use temporary Git repositories and test doubles for network/mo
 
 Historic results are preserved as historical evidence, **not** as current measurements or independent proof of the latest SHA.
 
-## Unreleased engineering-capability validation
+## Expanded engineering capabilities: observed scope
 
-Proposed PR #18 adds explicitly approved new files/directories and configuration/workflow edits (with workflow edits excluded from unreviewed `run`), expanded bounded changes, one model call per plan, a writable disposable verification workspace and opt-in review-ready PRs. The historic tests and workflow results above apply **only** to their listed commits, not automatically to these changes. The first actual CI result for the new head must be recorded after observation; authenticated provider and real Docker execution remain separate unverified capabilities.
+Merged PR #18 adds explicitly approved new files/directories and configuration/workflow edits (with workflow edits excluded from unreviewed `run`), expanded bounded changes, one model call per plan, a writable disposable verification workspace and opt-in review-ready PRs. Its offline checks are recorded above for the exact head and merged commit. Authenticated model/GitHub execution, a real Docker daemon, and generated-code security remain separately **unverified**.
 
 ## Remaining verification gaps
 
