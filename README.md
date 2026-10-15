@@ -198,7 +198,7 @@ Use `run` only if your process allows publishing **unreviewed AI-generated edits
 | Remote | Exact branch/repository identity, clean local state, no force-overwrite, issue/base recheck, open-draft-PR verification |
 | Explicitly denied | Merge, deployment, review approval, workflow edits, model-proposed shell commands; tests require an operator-supplied command |
 
-Checks for common credentials, terminal-control characters and unsafe paths help reduce exposure, but **are not complete DLP, security review or code correctness checks**. Syntax validation is implemented for Python and JSON; other permitted formats need their own trusted validators. See [SECURITY.md](SECURITY.md) for trust boundaries and remaining risks.
+Checks for common credentials, terminal-control characters and unsafe paths help reduce exposure, but **are not complete DLP, security review or code correctness checks**. Syntax validation is implemented for Python and JSON; JSON source files reject duplicate object keys and non-finite numeric constants (`NaN`, `Infinity`, `-Infinity`). Other permitted formats need their own trusted validators. See [SECURITY.md](SECURITY.md) for trust boundaries and remaining risks.
 
 ## Recovery and common failures
 
