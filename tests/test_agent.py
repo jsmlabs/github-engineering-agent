@@ -95,6 +95,25 @@ class AgentTest(unittest.TestCase):
         with self.assertRaisesRegex(AgentError, "test failure"):
             check_gate(self.planfile, receipt, override=True, reason="Cannot execute tests here")
 
+    def test_gate_rejects_boolean_and_malformed_exit_codes(self):
+        receipt = {"proposal_sha256": "a" * 64, "commit": "b" * 40, "branch": "agent/example"}
+        path = verification_path(self.planfile)
+        report = {"schema": 1, **receipt, "outcome": "PASS", "exit_code": 0}
+        for malformed in (False, True, "0", None):
+            with self.subTest(exit_code=malformed):
+                report["exit_code"] = malformed
+                path.write_text(json.dumps(report), encoding="utf-8")
+                with self.assertRaisesRegex(AgentError, "invalid verification record"):
+                    check_gate(self.planfile, receipt, override=True, reason="Tests not available")
+        report["exit_code"] = 0
+        report["schema"] = True
+        path.write_text(json.dumps(report), encoding="utf-8")
+        with self.assertRaisesRegex(AgentError, "invalid verification record"):
+            check_gate(self.planfile, receipt, override=False, reason=None)
+        report["schema"] = 1
+        path.write_text(json.dumps(report), encoding="utf-8")
+        self.assertEqual(check_gate(self.planfile, receipt, override=False, reason=None), "PASS")
+
     @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
     def test_isolated_test_rejects_unsafe_configuration(self):
         image = "trusted/image@sha256:" + "a" * 64
@@ -604,6 +623,16 @@ class AgentTest(unittest.TestCase):
         with patch.object(gh, "get", return_value={"number": 5, "state": "closed", "title": "X"}):
             with self.assertRaises(AgentError): gh.issue(5)
 
+    def test_github_rejects_boolean_issue_number(self):
+        gh = GitHub("test-token", "example/safe-repo")
+        valid = {"number": 1, "state": "open", "title": "Test", "body": "",
+                 "updated_at": "2026-10-16T00:00:00Z"}
+        with patch.object(gh, "get", return_value={**valid, "number": True}):
+            with self.assertRaisesRegex(AgentError, "Expected open issue"):
+                gh.issue(1)
+        with patch.object(gh, "get", return_value=valid):
+            self.assertEqual(gh.issue(1)["number"], 1)
+
     def test_model_rejects_malformed_message_content(self):
         for malformed in (None, "text", {"type": "output_text"}, 123, [None]):
             with self.subTest(content=malformed):
@@ -944,6 +973,19 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(committed_blob(self.checkout, receipt["commit"], "app.py"), b"x = 2\n")
         with self.assertRaises(AgentError):
             committed_blob(self.checkout, receipt["commit"], ".env")
+
+    def test_api_transport_disconnects_fail_with_sanitized_error(self):
+        from http.client import HTTPException
+        from gh_agent.services import json_request
+        for failure in (ConnectionResetError("closed by peer"),
+                        HTTPException("malformed response")):
+            with self.subTest(failure=type(failure).__name__):
+                with patch("gh_agent.services.build_opener") as opener:
+                    opener.return_value.open.side_effect = failure
+                    with self.assertRaisesRegex(AgentError, "API request failed or returned invalid JSON"):
+                        json_request("https://api.github.com/repos/example/safe-repo",
+                                     token="dummy", github=True)
+                    opener.return_value.open.assert_called_once()
 
     def test_api_endpoint_allowlist(self):
         from gh_agent.services import json_request
