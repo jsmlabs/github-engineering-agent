@@ -446,6 +446,20 @@ class AgentTest(unittest.TestCase):
                     with self.assertRaisesRegex(AgentError, "Malformed model message content"):
                         Model("key", "name").ask("instructions", {"a": 1}, {"type": "object"}, "test")
 
+    def test_model_rejects_refusal_even_with_structured_text(self):
+        for parts in (
+            [{"type": "refusal", "refusal": "Cannot comply"}],
+            [{"type": "output_text", "text": '{"ok": true}'},
+             {"type": "refusal", "refusal": "Cannot comply"}],
+        ):
+            with self.subTest(parts=parts):
+                response = {"status": "completed", "output": [
+                    {"type": "message", "content": parts},
+                ]}
+                with patch("gh_agent.services.json_request", return_value=response):
+                    with self.assertRaisesRegex(AgentError, "Model response refused"):
+                        Model("key", "name").ask("instructions", {}, {"type": "object"}, "test")
+
     def test_model_accepts_single_structured_message(self):
         response = {"status": "completed", "output": [
             {"type": "reasoning", "content": None},

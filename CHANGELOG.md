@@ -6,6 +6,10 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Model refusal handling
+
+- Reject model responses containing explicit refusal parts, including mixed refusal and structured-text messages; add deterministic regression tests.
+
 ### Structured model-output validation
 
 - Fail closed on duplicate JSON object keys (including nested keys) and non-finite numeric constants in model-generated structured output before proposal validation.
