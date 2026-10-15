@@ -252,6 +252,17 @@ def status(args) -> None:
         print("REMOTE_BRANCH", remote if remote is not None else "ABSENT")
         if remote and remote != head:
             print("REMOTE_MISMATCH - publication forbidden")
+            return
+        if remote == head:
+            gh = GitHub(os.environ.get("GITHUB_TOKEN", ""), receipt["repo"])
+            existing = gh.existing_pr(receipt["branch"], receipt["base"])
+            if existing:
+                exact = (existing.get("state") == "open" and existing.get("draft") is True
+                         and isinstance(existing.get("head"), dict)
+                         and existing["head"].get("sha") == head)
+                print("DRAFT_PR", "EXACT_OPEN" if exact else "CONFLICT")
+            else:
+                print("DRAFT_PR ABSENT")
 
 
 def publish(args) -> None:
