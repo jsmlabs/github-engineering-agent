@@ -380,12 +380,82 @@ def run_auto(args) -> None:
 
 
 
+
+def menu_style(text: str, color_code: str, *, no_color: bool = False) -> str:
+    """ANSI styling only on capable interactive terminals; plain otherwise."""
+    if (no_color or os.environ.get("NO_COLOR") is not None
+            or os.environ.get("TERM", "").lower() == "dumb"
+            or not sys.stdout.isatty()):
+        return text
+    return f"\033[{color_code}m{text}\033[0m"
+
+
+def menu(args) -> None:
+    """Bounded local-only terminal navigation. Never start side effects."""
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise AgentError("Menu needs an interactive terminal; use 'gh-engineer guide' instead")
+
+    no_color = getattr(args, "no_color", False)
+    checkout = getattr(args, "checkout", ".")
+    last_proposal = None
+
+    print(menu_style("GitHub Engineering Agent", "1;36", no_color=no_color))
+    print("Guided terminal menu | local inspection only")
+    for _ in range(40):
+        print()
+        print(menu_style("  1  Guide           Review-first workflow", "1", no_color=no_color))
+        print("  2  Doctor          Check local setup and checkout")
+        print("  3  Next step       Inspect saved proposal")
+        print("  4  Status          Inspect saved local receipt")
+        print("  5  Commands        Quick reference")
+        print("  0  Exit")
+        try:
+            choice = input("Choose [0-5]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\nMenu closed. No action was started.")
+            return
+        if choice in {"0", "q", "quit", "exit"}:
+            print("Menu closed. No action was started.")
+            return
+        if choice not in {"1", "2", "3", "4", "5"}:
+            print("Unknown option. Enter a number from 0 to 5.")
+            continue
+        try:
+            if choice == "1":
+                guide(args)
+            elif choice == "2":
+                doctor(SimpleNamespace(checkout=checkout, repo=getattr(args, "repo", None)))
+            elif choice in {"3", "4"}:
+                hint = " (Enter to reuse previous path)" if last_proposal else ""
+                proposal = input("Proposal JSON path" + hint + ": ").strip()
+                if not proposal:
+                    if not last_proposal:
+                        print("No proposal path given; no action taken.")
+                        continue
+                    proposal = last_proposal
+                last_proposal = proposal
+                local_args = SimpleNamespace(checkout=checkout, proposal=proposal, remote=False)
+                if choice == "3":
+                    next_step(local_args)
+                else:
+                    status(local_args)
+            else:
+                overview(args)
+        except (AgentError, FileNotFoundError, PermissionError) as exc:
+            print("CHECK STOPPED:", str(exc))
+        except (EOFError, KeyboardInterrupt):
+            print("\nMenu closed. No action was started.")
+            return
+    print("Menu session limit reached. Start a new menu when needed.")
+
+
 def overview(args=None) -> None:
     """A short, read-only home screen; no network or filesystem side effects."""
     print("GitHub Engineering Agent")
     print("Issue -> reviewed changes -> local commit -> verified pull request")
     print()
     print("GET STARTED")
+    print("  gh-engineer menu                   Interactive, read-only local dashboard")
     print("  gh-engineer guide                  Five-step, copyable workflow")
     print("  gh-engineer doctor                 Check this workstation and checkout")
     print("  gh-engineer plan --help            Start from an approved GitHub issue")
@@ -505,6 +575,11 @@ def make_parser() -> argparse.ArgumentParser:
     )
     parser.set_defaults(func=overview)
     sub = parser.add_subparsers(dest="command")
+    p = sub.add_parser("menu", help="Interactive local-only menu (requires a terminal)")
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
+    p.add_argument("--repo", help="Optional repository identity for local doctor checks")
+    p.add_argument("--no-color", action="store_true", help="Disable ANSI colors (also honors NO_COLOR)")
+    p.set_defaults(func=menu)
     p = sub.add_parser("guide", help="Show the recommended five-step workflow with examples")
     p.set_defaults(func=guide)
     p = sub.add_parser("doctor", help="Check Python, Git and checkout without network or mutations")

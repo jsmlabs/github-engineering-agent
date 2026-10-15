@@ -22,7 +22,7 @@
 
 | Operation | Required authorization | Maximum intended effect |
 | --- | --- | --- |
-| `guide`, `doctor`, `next` | No permission grants | Local instructions or read-only state checks, never model or remote writes |
+| `menu`, `guide`, `doctor`, `next` | No permission grants | Local interactive navigation, instructions or read-only state checks; never model or remote writes |
 | `plan` | `--allow-source-upload` and 1–12 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
 | `review` | None | Print full proposed diff/digest, **no modification** |
 | `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
@@ -31,7 +31,7 @@
 | `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open PR (draft by default)** |
 | `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
 
-The terminal assumes the current working directory as the checkout unless `--checkout` is supplied. `doctor` inspects local Git and reports credential presence only; `next` never executes its suggestions and refuses mismatched state. Neither command attests to the security of the local host, credentials or dependencies.
+The terminal assumes the current working directory as the checkout unless `--checkout` is supplied. The explicit `menu` command requires a TTY, has a bounded input loop and never invokes `plan`, `apply`, `publish` or `run`; it calls local-only `guide`, `doctor`, `next` or `status` without remote lookup. ANSI styling is disabled when redirected, when `NO_COLOR` is set or with `--no-color`. Avoid treating terminal output or local receipt files as trusted evidence of live provider behavior. `doctor` inspects local Git and reports credential presence only; `next` never executes its suggestions and refuses mismatched state. Neither command attests to the security of the local host, credentials or dependencies.
 
 The agent **does not** merge, approve PR reviews, deploy, delete files, create unapproved files, execute model-proposed shell commands, or mutate arbitrary paths. Security controls are deterministic checks in application code, not guarantees provided by model instructions.
 
