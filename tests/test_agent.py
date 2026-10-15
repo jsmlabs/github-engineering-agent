@@ -158,6 +158,22 @@ class AgentTest(unittest.TestCase):
         with self.assertRaises(AgentError):
             guarded_file(self.checkout, "src/bad.py", allow_new=False)
 
+    def test_json_source_rejects_ambiguous_or_nonstandard_values(self):
+        valid = '{"nested": {"x": 1}, "items": [true, null, 2.5]}'
+        validate_content_syntax("config.json", valid)
+        for content in (
+            '{"key": 1, "key": 2}',
+            '{"outer": {"x": 1, "x": 2}}',
+            '{"value": NaN}',
+            '{"value": Infinity}',
+            '{"value": -Infinity}',
+        ):
+            with self.subTest(content=content), self.assertRaisesRegex(
+                AgentError, "Invalid Python/JSON syntax"
+            ):
+                validate_content_syntax("config.json", content)
+        validate_content_syntax("module.py", "value = 1")
+
     def test_git_repo_identity_and_dirty(self):
         self.assertEqual(assert_checkout(self.checkout, "example/safe-repo", "main", require_base=True), self.base)
         with self.assertRaises(AgentError):
