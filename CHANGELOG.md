@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Terminal menu and accessible interaction
+
+- Add explicit `gh-engineer menu` with numbered local-only navigation, reusable proposal path within the session, TTY detection, bounded input loops and safe EOF/interrupt handling.
+- Support optional ANSI styling with `--no-color` and `NO_COLOR` plain-text fallback. Keep non-interactive automation on the existing ordinary CLI commands.
+- Expand CLI regression and offline smoke checks for menu behavior, no mutation/network effects, invalid choices, local state and cross-platform help.
+
 ### Terminal experience and guided operation
 
 - Introduce a concise CLI home screen, `guide` step-by-step onboarding, offline `doctor` preflight and read-only `next` suggestions backed by local proposal/receipt/verification checks.
