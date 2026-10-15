@@ -6,6 +6,7 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ### Verification and recovery (development)
 
+- Reject actual newline and carriage-return characters in Docker bind-mount paths before invoking Docker; add a no-subprocess regression test.
 - Added optional operator-configured Docker tests using an explicit digest-pinned image and bounded, no-network container invocation.
 - Required an exact commit-bound passing verification record before draft publication, with an explicit auditable exception only for unexecuted tests.
 - Added read-only local/remote status inspection, negative verification tests and a multi-platform offline CI matrix.
