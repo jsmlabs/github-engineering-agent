@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -64,11 +65,15 @@ class GitHub:
     def metadata(self) -> dict:
         x = json_request(f"https://api.github.com/repos/{self.repo}", token=self.token, github=True)
         if (not isinstance(x, dict) or not isinstance(x.get("full_name"), str)
-                or x["full_name"].lower() != self.repo.lower() or x.get("archived")):
+                or x["full_name"].lower() != self.repo.lower()
+                or type(x.get("archived")) is not bool or x["archived"]):
             raise AgentError("Repository identity mismatch or archived repository")
         branch = x.get("default_branch")
-        if not isinstance(branch, str) or not branch or branch.startswith("-"):
-            raise AgentError("Missing default branch")
+        if (not isinstance(branch, str)
+                or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._/-]*", branch)
+                or ".." in branch or "//" in branch
+                or branch.endswith(("/", ".", ".lock"))):
+            raise AgentError("Invalid default branch")
         return x
 
     def issue(self, number: int) -> dict:
@@ -78,11 +83,13 @@ class GitHub:
         if (not isinstance(x, dict) or "pull_request" in x or x.get("state") != "open"
                 or type(x.get("number")) is not int or x["number"] != number):
             raise AgentError("Expected open issue (not a pull request)")
-        if not isinstance(x.get("title"), str) or len(x["title"]) > 250 or not isinstance(x.get("body") or "", str):
+        body = x.get("body")
+        if (not isinstance(x.get("title"), str) or len(x["title"]) > 250
+                or (body is not None and not isinstance(body, str))):
             raise AgentError("Invalid issue fields")
         if not isinstance(x.get("updated_at"), str) or not x["updated_at"]:
             raise AgentError("Issue update timestamp is required to detect stale plans")
-        if len(x.get("body") or "") > MAX_ISSUE_CHARS:
+        if len(body or "") > MAX_ISSUE_CHARS:
             raise AgentError("Issue is too long for the bounded context window")
         return x
 
