@@ -429,6 +429,20 @@ class AgentTest(unittest.TestCase):
         with self.assertRaisesRegex(AgentError, "Git push failed"):
             run_git(self.checkout, "push", f"--force-with-lease=refs/heads/{branch}:", str(remote), f"HEAD:refs/heads/{branch}")
 
+    def test_repository_metadata_rejects_malformed_identity(self):
+        gh = GitHub("test-token", "example/safe-repo")
+        for name in (None, 123, [], {}, "other/repo"):
+            with self.subTest(full_name=name):
+                with patch("gh_agent.services.json_request", return_value={
+                    "full_name": name, "default_branch": "main", "archived": False,
+                }):
+                    with self.assertRaisesRegex(AgentError, "Repository identity mismatch"):
+                        gh.metadata()
+        with patch("gh_agent.services.json_request", return_value={
+            "full_name": "example/safe-repo", "default_branch": "main", "archived": False,
+        }):
+            self.assertEqual(gh.metadata()["default_branch"], "main")
+
     def test_github_refuses_issue_as_pr_and_closed(self):
         gh = GitHub("test-token", "example/safe-repo")
         with patch.object(gh, "get", return_value={"number": 5, "state": "open", "title": "X", "pull_request": {}}):
