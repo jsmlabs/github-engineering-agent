@@ -9,6 +9,8 @@
 
 Local proposal/receipt records, GitHub/OpenAI HTTP JSON, model structured outputs, and generated JSON source now share strict duplicate-key and non-finite-number rejection. This prevents ambiguous JSON decoding but is not authentication or semantic verification.
 
+Unrequested tool-call and other unexpected model-output items are rejected rather than ignored when a structured answer is present; incomplete message status and non-text message parts also fail closed. Outbound JSON rejects non-finite numeric constants. Read-only remote status rejects receipts missing repository/base identity before contacting GitHub.
+
 The model proposes **data**, not executable authority. The trusted Python/Git layer enforces file selection, inputs, consent flags, revision checks, and observable tool outcomes. Repository source, issue text, model output and remote responses are treated as untrusted until checked at the relevant boundary.
 
 | Source or component | Threat | Enforced boundary | Residual risk |
