@@ -86,7 +86,7 @@ The report records exit code, image, argv and bounded output excerpts. It is **n
 ### 4. `publish` - remote effect with reconciliation
 
 1. Require `--approve-publish`, valid proposal/receipt identity, a clean checkout at the expected commit, matching changed-file set and committed bytes.
-2. Require an exact recorded **PASS** with zero exit code; or, **only if no report exists**, explicitly accept `--approve-unverified` with a 12–300-character justification.
+2. Require an exact recorded **PASS** with a true integer zero exit code; or, **only if no report exists**, explicitly accept `--approve-unverified` with a 12–300-character justification.
 3. Re-read repository metadata and open issue; reject a moved default branch, changed issue timestamp or different remote base SHA.
 4. Check the exact remote branch ref. If absent, push using `--force-with-lease=refs/heads/<branch>:` as a **create-only** lease, not a force overwrite. Re-read and verify its exact SHA.
 5. Recheck base and issue after push. Search for an existing matching PR; reject closed, ambiguous, malformed or conflicting results. Create or verify an open draft PR by default, or an open review-ready PR when `--ready-for-review` is explicitly supplied, whose head matches the approved commit.
@@ -103,9 +103,9 @@ The report records exit code, image, argv and bounded output excerpts. It is **n
 | Allowed source | 1–12 explicitly approved existing/new UTF-8 files, max 32,000 bytes/file, 96,000 bytes aggregate |
 | Candidate tree | No fixed tree-size ceiling; exact allowlist and context budget bound model input |
 | Diff | Max 1,600 changed lines, 180,000 bytes in proposal review diff |
-| Issue | Open issue (not PR), bounded title and 6,000-character body, required revision timestamp |
+| Issue | Open issue (not PR), bounded title and 12,000-character body, required revision timestamp |
 | Git/HTTP | Exact SHA/branch checks and Git remote identity; allowlisted HTTPS endpoints with size/time limits |
-| JSON | Strict duplicate-key, non-finite/overflow-number and invalid-Unicode rejection across local state, model content and API responses; local state reads capped at 256,000 bytes |
+| JSON | Strict duplicate-key, non-finite/overflow-number and invalid-Unicode rejection across local state, model content and API responses; local state reads capped at 512,000 bytes |
 
 JSON source parsing and Python AST validation are **syntax checks** only. There is no built-in validator for the other allowed source formats, no automatic target-test selection, no transactional push/PR operation, and no generalized resumable job store.
 
