@@ -46,6 +46,10 @@ This bounded pilot addresses malformed GitHub pull-request search data. Prior to
 
 No new Python dependency, version change, schema change or automatic merge/deployment was introduced. The test results refer to the changed source tree, not to the original v0.2.0 release.
 
+## Combined PR #2/#3 validation (pending current-head CI)
+
+The malformed-model-content hardening and two unit regression tests from PR #3 are integrated into this development branch alongside the verification and recovery controls. The combined source requires current-head CI validation; no live Docker isolation or authenticated external API end-to-end test has been executed here. Do not infer success from earlier branch commits.
+
 ## Explicitly not verified
 
 | Concern | Evidence status |
