@@ -1,10 +1,14 @@
 # Changelog
 
-- Fail closed on duplicate matching PR-search records during remote draft-PR reconciliation; add an offline regression test. No CLI, proposal-schema, or dependency changes.
-
 Notable changes are grouped by release. The package uses its declared version in `pyproject.toml`; documentation-only edits do not independently increment the application version.
 
 ## Unreleased
+
+### CI supply-chain modernization
+
+- Upgrade `actions/checkout` and `actions/setup-python` to upstream v7, pinned to verified immutable Git commit SHAs; preserve read-only CI permissions, no checkout credentials and the existing six-configuration test matrix.
+- Bound workflow jobs to 15 minutes and remove an incorrectly positioned changelog entry without changing runtime behavior.
+
 
 ### Unified strict JSON boundaries
 
@@ -47,6 +51,8 @@ Notable changes are grouped by release. The package uses its declared version in
 
 
 ### Reliability
+
+- Reject multiple matching open PR reconciliation results rather than trusting the first result (previously listed outside the Unreleased section).
 
 - Integrate fail-closed OpenAI Responses message-content validation and its positive/negative regression tests from PR #3.
 - Fail closed with `AgentError` when GitHub pull-request search results contain malformed records or nested fields, instead of leaking an unhandled exception. Added positive and negative regression tests.
