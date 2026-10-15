@@ -6,6 +6,11 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Repository metadata validation
+
+- Reject malformed GitHub repository identity fields with an explicit `AgentError` instead of an uncaught attribute exception. Add valid and malformed metadata regression tests.
+
+
 ### Model refusal handling
 
 - Reject model responses containing explicit refusal parts, including mixed refusal and structured-text messages; add deterministic regression tests.
