@@ -1,5 +1,7 @@
 # Changelog
 
+- Fail closed on duplicate matching PR-search records during remote draft-PR reconciliation; add an offline regression test. No CLI, proposal-schema, or dependency changes.
+
 Notable changes are grouped by release. The package uses its declared version in `pyproject.toml`; documentation-only edits do not independently increment the application version.
 
 ## Unreleased

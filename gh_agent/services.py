@@ -90,6 +90,7 @@ class GitHub:
         # occupies this head branch; fail closed rather than guessing.
         if len(prs) >= 100:
             raise AgentError("PR search results may be incomplete; reconcile manually")
+        match = None
         for pr in prs:
             # API responses are untrusted: missing or malformed nested fields
             # must fail closed, not cause an uncaught AttributeError or be skipped.
@@ -105,8 +106,10 @@ class GitHub:
             if head["ref"] == branch and target["ref"] == base:
                 if state != "open":
                     raise AgentError("Existing PR is closed; refusing to reuse its branch")
-                return pr
-        return None
+                if match is not None:
+                    raise AgentError("Ambiguous PR search results; reconcile manually")
+                match = pr
+        return match
 
 
 SELECT_SCHEMA = {

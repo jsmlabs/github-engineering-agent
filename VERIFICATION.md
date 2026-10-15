@@ -92,3 +92,7 @@ The Docker runner now checks actual newline and carriage-return characters in th
 This branch adds a digest-pinned Docker test runner, commit-bound verification records, a publication gate, explicit unverified exceptions, read-only status and additional mocked failure-path tests. Docker execution is not exercised by the offline suite; its launch flags and failure handling are unit-tested with stubs. The repository's offline matrix now targets Linux, macOS and Windows on Python 3.11 and 3.13.
 
 **At the time this development note was prepared:** no real Docker test or authenticated GitHub/OpenAI end-to-end run had been observed. Subsequent `main` CI evidence is recorded above; the earlier 40/40 local result is not a substitute for commit-specific CI.
+
+## Ambiguous PR-reconciliation regression (2026-10-15)
+
+A targeted change makes `GitHub.existing_pr` reject multiple matching open PR records instead of silently trusting the first. One offline regression test covers duplicate matches. **Local execution and live GitHub mutation were not performed during preparation**; consult the branch/PR GitHub Actions results for execution evidence. Existing API pagination and remote race limitations remain.
