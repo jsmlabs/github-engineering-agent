@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "github-engineering-agent"
+version = "0.2.0"
+description = "Bounded GitHub issue-to-draft-PR engineering agent"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+gh-engineer = "gh_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["gh_agent*"]
