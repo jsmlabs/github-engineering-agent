@@ -33,6 +33,7 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
         raise AgentError("Test timeout must be between 1 and 300 seconds")
     if os.name != "posix" or any(ch in str(checkout) for ch in (",", "\\n", "\\r")):
         raise AgentError("Docker verification requires a POSIX path without mount delimiters")
+    import resource  # Only reached on POSIX hosts
     cid_dir = tempfile.TemporaryDirectory(prefix="gh-engineer-cid-")
     try:
         cid = Path(cid_dir.name) / "cid"
@@ -53,7 +54,9 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
                  (Path(cid_dir.name) / "stderr").open("wb") as err:
                 result = subprocess.run(cmd, stdin=subprocess.DEVNULL,
                                         stdout=out, stderr=err,
-                                        timeout=timeout, check=False, env={
+                                        timeout=timeout, check=False,
+                                        preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_FSIZE, (262144, 262144)),
+                                        env={
                                             "PATH": os.environ.get("PATH", ""),
                                             "HOME": os.environ.get("HOME", "/"),
                                         })
@@ -72,6 +75,15 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
             raise AgentError("Isolated test timed out; inspect Docker for surviving containers") from exc
         except OSError as exc:
             raise AgentError("Docker unavailable; verification did not run") from exc
+        if result.returncode != 0 and cid.exists():
+            identifier = cid.read_text(encoding="ascii").strip()
+            if re.fullmatch(r"[a-f0-9]{64}", identifier):
+                try:
+                    subprocess.run(["docker", "rm", "-f", identifier],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, timeout=15, check=False)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
         return {"exit_code": result.returncode,
                 "stdout_excerpt": (Path(cid_dir.name) / "stdout").open("rb").read(2048).decode("utf-8", errors="replace"),
                 "stderr_excerpt": (Path(cid_dir.name) / "stderr").open("rb").read(2048).decode("utf-8", errors="replace")}
