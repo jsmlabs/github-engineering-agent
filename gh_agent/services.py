@@ -157,8 +157,23 @@ class Model:
             content.extend(part for part in parts if part.get("type") == "output_text")
         if len(content) != 1 or not isinstance(content[0].get("text"), str):
             raise AgentError("Missing single structured model output")
+        def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("Duplicate structured output key")
+                result[key] = value
+            return result
+
+        def reject_constant(value: str) -> None:
+            raise ValueError("Non-finite structured output number")
+
         try:
-            decoded = json.loads(content[0]["text"])
+            decoded = json.loads(
+                content[0]["text"],
+                object_pairs_hook=unique_pairs,
+                parse_constant=reject_constant,
+            )
         except ValueError as exc:
             raise AgentError("Invalid structured model output") from exc
         if not isinstance(decoded, dict):
