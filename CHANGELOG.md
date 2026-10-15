@@ -4,6 +4,11 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Strict JSON source validation
+
+- Reject duplicate JSON object keys, including nested duplicates, and non-standard non-finite values (`NaN`, `Infinity`, `-Infinity`) before accepting generated JSON edits.
+- Add regression coverage without changing the proposal schema, CLI options, or package version.
+
 ### Verification and recovery (integrated into `main`)
 
 - Reject actual newline and carriage-return characters in Docker bind-mount paths before invoking Docker; add a no-subprocess regression test.
