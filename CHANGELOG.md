@@ -8,6 +8,8 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ### Security and input validation
 
+- Harden shared JSON decoding against finite-syntax overflow (`1e999`) and unpaired Unicode surrogates; cap proposal/receipt/verification file reads at 256,000 bytes and add targeted regressions. Valid JSON and application schemas are unchanged.
+
 - **Unified strict JSON boundaries:** reject duplicate object keys, including nested duplicates, and non-standard `NaN`/`Infinity` constants in generated JSON source, model Structured Outputs, GitHub/OpenAI HTTP responses, and private proposal/receipt/verification records. Treat excessive JSON nesting as a controlled error. Consolidate the shared parser.
 - **Fail-closed model output:** reject explicit refusals (including responses mixing refusal and text), unexpected output items/message parts, incomplete messages, ambiguous structured JSON and malformed outbound model/API JSON. Valid reasoning plus one completed structured-text response remains supported.
 - **Repository and GitHub identity:** reject malformed/non-string `owner/name` values and malformed API repository `full_name` with `AgentError` instead of uncaught type/attribute errors.
