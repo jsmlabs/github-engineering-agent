@@ -1,130 +1,134 @@
-# Architecture and recovery
+# Architecture, state transitions and recovery
 
-[README](../README.md) · [Security](../SECURITY.md) · [Verification](../VERIFICATION.md)
+[← README](../README.md) · [Security](../SECURITY.md) · [Verification](../VERIFICATION.md)
 
-This document describes the **implemented v0.2.0 CLI**, not a deployment blueprint or proof of live service compatibility. The agent is intentionally a single local Python process with Git/HTTPS calls and private on-disk proposal state. It does not host a service, run continuously, or autonomously merge code.
+**Implemented contract for package `0.2.0` (including unreleased hardening).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
 
-## Components and data boundaries
+## System overview
 
-```text
-Operator (CLI flags + separate credentials)
-          |
-      gh_agent/cli.py  ----> private proposal JSON / apply receipt
-          |                         outside checkout
-          +-- gh_agent/core.py
-          |    * exact repo/worktree identity
-          |    * allowed file / path policy
-          |    * source and proposal checks
-          |    * Git blob / commit verification
-          |
-          +-- gh_agent/services.py
-          |      * GitHub issue / metadata / PR API
-          |      * OpenAI Responses API
-          |
-          +-- gh_agent/verification.py
-                 * operator-configured Docker tests
-                 * commit-bound private verification record
-          |
-     trusted Git executable ----> checked-out target repository
-          |                         and GitHub remote
-          +----> open draft pull request (publish only)
-```
+~~~mermaid
+flowchart TB
+    O["Operator: CLI flags, file scope and approvals"] --> C["gh_agent/cli.py"]
+    C --> P["gh_agent/core.py: Git, paths, checksums, JSON, filesystem policy"]
+    C --> S["gh_agent/services.py: GitHub + OpenAI HTTPS"]
+    C --> V["gh_agent/verification.py: Docker checks + publish gate"]
+    C --> L[("Private proposal, receipt, verification JSON outside checkout")]
+    P --> G[("Trusted Git + local target checkout")]
+    S --> GH[("GitHub issue, refs, draft PR")]
+    S --> AI[("Responses Structured Outputs")]
+    V --> D[("Trusted Docker daemon + operator image")]
+    G --> GH
+~~~
 
-| Boundary | Data trusted for | Not trusted for |
+| Component | Responsibility | Does **not** guarantee |
 | --- | --- | --- |
-| Operator arguments and credentials | Explicit file scope, repository target, permission to attempt an effect | Proving model output safe or tests passed |
-| GitHub issue body and repository files | Task/source context within limits | New instructions or expanded tool permissions |
-| Model response | Candidate edits after deterministic validation | Execution authority, file scope changes, success claims |
-| Local Git and checkout | Committed blob identity when configuration and workspace are trusted | Security of adversarial Git helpers/filters or racing processes |
-| GitHub remote observations | Exact branch/PR evidence at the time observed | Atomicity across push and PR creation; future availability |
+| `cli.py` | Explicit consent, read/mutation boundaries, orchestration and reconciled publication | Safe semantics of generated code |
+| `core.py` | Repository/path identity, file budgets, strict local JSON, SHA-256, Git worktree/blob checks | Isolation from a malicious Git installation or host |
+| `services.py` | Allowlisted HTTPS, size/time limits, strict API/model JSON and shape checks | API availability, authenticated vendor behavior, model correctness |
+| `verification.py` | POSIX-host operator-selected Docker tests, commit-bound reports and publication gate | Uncompromised daemon, trusted image, sufficient target test coverage |
 
-### Implementation modules
+### Trusted and untrusted data
 
-- **`core.py`** contains repository identity checks, path restrictions, read limits, sensitive-content heuristics, SHA-256 utilities, syntax checks and Git verification.
-- **`services.py`** constrains HTTPS hosts, request/response sizes and timeouts. Redirects and automatic network retries are rejected. It parses GitHub issue/PR state and Responses Structured Outputs.
-- **`cli.py`** orchestrates consent boundaries and state checks; it does not execute model-supplied commands.
-- **`verification.py`** implements optional POSIX-host Docker execution, bounded output capture, commit-bound verification records and the publication gate. Docker daemon and test image are operator-trusted dependencies.
+- **Operator authorization:** CLI flags define the permission to disclose source, edit the specific files locally and publish remotely. The model cannot grant any of these.
+- **Untrusted issue/source:** GitHub issue text and selected files provide task context, never executable instructions or permission to extend scope.
+- **Untrusted model/API response:** Strict parsing, structural checks, allowed paths, content budgets and original-file hashes constrain proposed data before any local edit.
+- **Locally trusted dependencies:** Python process, filesystem, Git executable, Git configuration/filters/helpers, Docker daemon and operator-selected image require independent trust and isolation.
+- **Remote observations:** GitHub issue, base, ref and PR state are true only at observation time; push and PR creation cannot form one atomic transaction.
 
-## Operation contracts
+For threat assumptions and residual risks see [Security](../SECURITY.md).
 
-### `plan`: proposal without repository mutation
+## End-to-end lifecycle
 
-1. Require `--allow-source-upload`, a repository identifier and explicit `--allowed-file` paths.
-2. Verify repository/`origin` identity, clean checkout, default branch and known `origin/<base>` SHA.
-3. Read one open issue with an update timestamp; check issue text and authorized tracked sources for known sensitive-content patterns.
-4. Ask the model to select from the already-approved paths; validate that selection.
-5. Ask the model for complete replacement files; check edit structure, original hashes, file limits and selected syntax.
-6. Write a schema-2 proposal to an exclusively created JSON file outside the checkout; do not print the source diff.
+~~~mermaid
+flowchart LR
+    A["plan: private proposal"] --> B["review: full diff + digest"]
+    B --> C{"Exact approval?"}
+    C -->|Yes| D["apply: new branch and commit"]
+    C -->|No| STOP["Stop"]
+    D --> E["verify: record PASS or FAIL"]
+    E --> F{"publish gate"}
+    F -->|PASS| G["publish: create-only push"]
+    F -->|FAIL/stale| STOP
+    F -->|No report + explicit exception| G
+    G --> H["Confirm remote SHA"]
+    H --> I["Create or reconcile open draft PR"]
+    I --> J["Independent human review + CI"]
+~~~
 
-Two model calls are expected on the successful path. If the model returns an empty edit set, the deterministic edit validator rejects it rather than treating it as a successful no-op.
+The operator can call `status` at any time to inspect local recovery state (and optionally the remote) **without mutation**. `run` calls `plan → apply → verify (if configured) → publish` after up-front permission checks; it **skips** the proposal-specific `review` pause.
 
-### `review`: visible decision boundary
+### 1. `plan` - proposal, no checkout mutation
 
-Validate proposal against the unchanged clean base and display **all** proposed diff content and SHA-256. It does not modify the repository. Do not record review output in a broadly accessible terminal log.
+1. Require `--allow-source-upload`, one target `owner/name`, an open numbered issue, an exact operator-specified file allowlist and an output path outside the checkout.
+2. Verify the clean target worktree, matching single `origin`, current default/base ref and tracked source eligibility; reject likely sensitive content and oversize input.
+3. Model request **one** chooses a subset of pre-authorized paths; reject any escape or duplicate.
+4. Model request **two** returns complete UTF-8 replacement text and original SHA-256 for the chosen files; reject malformed output, unchanged edits, unsafe paths, invalid Python/JSON syntax or exceeded budgets.
+5. Exclusively create a private **schema-2** proposal; do not print generated source during planning.
 
-### `apply`: local mutation boundary
+A successful plan uses two model calls; a model-proposed empty edit list is **not** accepted as a successful no-op. Model text never causes direct command execution.
 
-Require `--approve` and a SHA-256 matching the exact proposal bytes. Revalidate the proposal, scope and clean base; reject branch/receipt collisions. Create a new `agent/issue-<issue>-<base-prefix>` branch, write only the approved files, check staged paths and `git diff --check`, commit and validate every committed blob. Create `<proposal>.applied.json` as a private local receipt.
+### 2. `review` and `apply` - explicit local mutation boundary
 
-An error **after** branch creation may leave the branch, modified files or a commit behind. The CLI prints `LOCAL_APPLY_INCOMPLETE` rather than destroying state.
+`review` revalidates the clean base and proposal, prints its entire unified diff and the SHA-256 of the exact proposal file, and changes nothing. `apply` requires `--approve` **and that exact SHA-256**.
 
-### `verify` and `status`: bounded verification and read-only recovery
+After verifying the same base and scoped paths, `apply` creates `agent/issue-<issue>-<base-sha-prefix>`. It writes approved full-file replacements, stages only proposed paths, checks the Git staged diff and changed-line budget, makes a local commit, verifies the committed blob bytes, then exclusively creates `<proposal>.applied.json`.
 
-`verify` accepts an explicitly configured digest-pinned Docker image and argv list, runs the command on a read-only checkout mount in a constrained container, and records the exact local commit and outcome outside the checkout. It currently requires a POSIX host; Docker remains a trusted dependency. `status` reports local recovery state and can inspect the remote ref when requested, without performing mutations. A recorded test failure cannot be overridden by an unverified-publication exception.
+The receipt captures proposal digest, repo, issue, base/branch/commit, changed files and local check outcomes. **If a failure occurs after branch creation, a changed worktree or commit can remain.** No automatic destructive rollback is attempted.
 
-### `publish`: remote mutation boundary
+### 3. `verify` and `status` - recorded evidence and read-only inspection
 
-Require `--approve-publish`, a matching commit-bound PASS verification record (or an explicit justified exception when no test report exists), the matching proposal and receipt, a clean checkout at the recorded commit, and matching committed bytes and changed-file set. Recheck the issue timestamp, remote default branch and base SHA. If the branch does not exist, push using a **create-only lease**; never overwrite another remote branch. Re-read the exact branch SHA, recheck issue and base, then create or verify an **open draft PR** whose head is the expected commit.
+`verify` checks proposal and receipt identity, clean checkout/branch and exact approved commit. On a supported POSIX host it invokes Docker with a trusted, already available digest-pinned image and explicit argv array. The checkout is mounted read-only with no container network, reduced privileges and bounded resources. A private `<proposal>.verified.json` is exclusively written for PASS or FAIL (schema **1**) and bound to the exact proposal SHA, branch and commit.
 
-Publication is **not transactional**: the remote branch may exist without a PR if a later step fails. HTTP timeouts are not evidence of failure or success.
+The report records exit code, image, argv and bounded output excerpts. It is **not signed** and does not attest to the target application's correctness. A test failure is never overridden by publication's no-test exception.
 
-### `run`: combined high-trust mode
+`status` reads receipt, local branch/HEAD/cleanliness and verification gate; `--remote` can additionally compare the exact remote ref and inspect a corresponding draft PR. It does not reset, repair, retry, create or push anything.
 
-Requires all three explicit flags (`--allow-source-upload`, `--approve-local`, `--approve-publish`) and at least one `--allowed-file`. Before planning, it also requires test-image/test-command configuration or an explicit justified unverified exception. This **skips interactive review**, so the operator accepts a draft PR being created from model-generated edits they have not inspected. It still performs the deterministic checks described above. It never merges or deploys.
+### 4. `publish` - remote effect with reconciliation
 
-## State and recovery
+1. Require `--approve-publish`, valid proposal/receipt identity, a clean checkout at the expected commit, matching changed-file set and committed bytes.
+2. Require an exact recorded **PASS** with zero exit code; or, **only if no report exists**, explicitly accept `--approve-unverified` with a 12–300-character justification.
+3. Re-read repository metadata and open issue; reject a moved default branch, changed issue timestamp or different remote base SHA.
+4. Check the exact remote branch ref. If absent, push using `--force-with-lease=refs/heads/<branch>:` as a **create-only** lease, not a force overwrite. Re-read and verify its exact SHA.
+5. Recheck base and issue after push. Search for an existing matching PR; reject closed, ambiguous, malformed or conflicting results. Create or verify **only an open draft PR** whose head matches the approved commit.
 
-```text
-no proposal
-    |
-    v
-proposal written --(reviewed SHA-256 + --approve)--> local branch + commit
-    |                                               |
-    | (user may stop safely)                         +--> receipt written
-    |                                                         |
-    |                                     --approve-publish    v
-    |                                               remote branch confirmed
-    |                                                         |
-    +--------------------------------------- human check -----> open draft PR confirmed
-                                                              |
-                                                      human review / CI
-                                                       (outside agent)
-```
+`publish` does not merge or deploy. A GitHub API timeout is not proof that a remote operation failed; reconciliation inspects current state rather than blindly replaying writes.
 
-Terminal outcomes can be **success**, **failure before effect**, or **partial/unknown after effect**. Reconciliation always reads actual Git/GitHub state before repeating any mutation.
+## Files, identifiers and budgets
 
-| Failure boundary | Observation to check | Safe action |
+| Resource | Implemented contract |
+| --- | --- |
+| Proposal | Private `<name>.json` outside checkout; proposal **schema 2** |
+| Apply receipt | Private `<name>.json.applied.json`, created once; receipt **schema 2** |
+| Verification report | Private `<name>.json.verified.json`, created once; report **schema 1** |
+| Allowed source | 1–5 existing tracked UTF-8 files, max 20,000 bytes/file, 55,000 bytes aggregate |
+| Candidate tree | At most 1,000 eligible tracked files |
+| Diff | Max 400 changed lines, 85,000 bytes in proposal review diff |
+| Issue | Open issue (not PR), bounded title and 6,000-character body, required revision timestamp |
+| Git/HTTP | Exact SHA/branch checks and Git remote identity; allowlisted HTTPS endpoints with size/time limits |
+| JSON | Strict duplicate-key/non-finite rejection for local state, model content and API responses |
+
+JSON source parsing and Python AST validation are **syntax checks** only. There is no built-in validator for the other allowed source formats, no automatic target-test selection, no transactional push/PR operation, and no generalized resumable job store.
+
+## Failure and recovery matrix
+
+| Boundary | Evidence to inspect | Recovery condition |
 | --- | --- | --- |
-| Issue or branch changed before apply | Local base and issue timestamp | Replan; old proposal is stale |
-| Apply interrupted | Local branch, `git status`, commit and receipt | Preserve state and inspect manually; no destructive reset |
-| Branch push timed out | Exact `refs/heads/agent/...` SHA on `origin` | Resume only after establishing the effect; no blind second push |
-| Base/issue changed after push | Exact default-branch SHA, issue `updated_at` | Leave branch for manual reconciliation; no stale PR creation |
-| PR POST uncertain | Open PR with expected head/base/draft status | Accept only the exact matching open draft; otherwise investigate |
-| Existing PR closed / PR search may be incomplete | GitHub PR status and query completeness | Stop; do not reuse a closed PR or infer absence |
+| Invalid source/scope or stale base before planning | Clean checkout, allowed tracked files, default branch SHA | Fix inputs or replan; no code mutation should have occurred |
+| Proposal changed after review | Full proposal diff and SHA-256 | Require a fresh review/approval; never reuse an old digest |
+| `LOCAL_APPLY_INCOMPLETE` | Current branch, `git status`, local commit and receipt path | Preserve work; manually reconcile; **no automatic reset** |
+| Docker timeout, failure or stale report | Exact report outcome/commit, possible surviving containers | Investigate safely; do not override recorded FAIL; rerun only after intentional state handling |
+| Push timed out | Exact `refs/heads/agent/...` remote SHA | Resume only after proving the branch effect; never push over a conflicting SHA |
+| Base/issue moved after push | Remote default SHA and issue `updated_at` | Leave branch for inspection; do not create a stale PR |
+| PR creation uncertain | Open PR head/base, draft flag, search completeness | Accept only an exact matching open draft; otherwise stop |
+| Unexpected PR closed, duplicate or conflicting | Returned records and remote ref | Stop and reconcile manually; do not infer absence from incomplete results |
 
-## Deterministic limits and intentionally missing features
+> [!CAUTION]
+> A branch can exist remotely without its PR. A local commit can exist without its receipt. A verification **PASS** reflects only the operator-selected test command. None of these states implies successful target CI, mergeability or production readiness.
 
-- Up to **5** existing tracked UTF-8 files; **20,000 bytes/file** and **55,000 bytes total** for selected source/edits; **400 changed lines** and **85,000 diff bytes**.
-- Up to **1,000 eligible tracked files** in the candidate repository listing, one open issue, bounded title/body, and two OpenAI model calls on successful planning.
-- No new files, deletes, unapproved paths, hidden paths, GitHub workflow edits, arbitrary model commands, automatic test selection, merge or deployment. Operator-selected isolated tests are supported by `verify`.
-- Python/JSON syntax parsing is implemented. Source-content credential checks are heuristic; no full DLP, static analysis, sandbox or semantic verification.
-- There is no resumable job store, queue, background scheduler or atomic cross-service transaction. The operator manages partial state.
+## Supported vs. intentionally unsupported
 
-See [SECURITY.md](../SECURITY.md) for threat preconditions and [VERIFICATION.md](../VERIFICATION.md) for executed versus unverified checks.
+**Supported:** bounded scoped proposals, source-upload consent, human digest approval, local commits, optional isolated tests, explicit missing-test exception, remote create-only draft PR, and read-only recovery.
 
+**Unsupported:** new/deleted files, broad or hidden file edits, workflow modifications by the agent, model-suggested command execution, autonomous reviews/merges/deployments, background operation, target-test discovery, full secret detection, cryptographic attestation, and automatic recovery from arbitrary partial failures.
 
-## Verification gate and recovery extension
-
-After `apply`, `verify` binds a separate immutable-create JSON report to the proposal SHA-256, exact commit and branch, using an explicitly configured digest-pinned Docker image and command argv. The checkout is mounted read-only; container execution has network disabled, unprivileged user, read-only root, limited CPU/memory/PIDs, and a bounded timeout. The Docker daemon and image are trusted dependencies and must be isolated by the operator.
-
-`publish` checks the report before any GitHub mutation. Only an exact PASS with zero exit status is accepted; failed or stale reports block publication. When no report exists, an explicit unverified authorization and reason are necessary. `status` prints the current local commit/branch/cleanliness and verification state, with an optional exact remote-branch lookup. It does not repair or retry automatically. Existing `publish` reconciliation remains idempotent for an exact remote branch and open draft PR; changing bases, issues, or commits still fail closed.
+Use [Verification](../VERIFICATION.md) for observed results, and [Security](../SECURITY.md) for operational safeguards and incident handling.

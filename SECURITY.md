@@ -1,81 +1,87 @@
-# Security policy and operating boundaries
+# Security model and operating policy
 
-[README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Verification](VERIFICATION.md)
+[← README](README.md) · [Architecture & recovery](docs/ARCHITECTURE.md) · [Verification evidence](VERIFICATION.md)
 
 > [!WARNING]
-> **Reference implementation, not a security certification.** This tool can publish AI-generated code to a remote draft pull request. A draft still exposes code to anyone with repository access and may trigger downstream automation. Use it only on repositories and files you are authorized to modify, with least-privilege credentials and independent review gates.
+> **Reference software, not a security certification.** The agent may upload selected source code to a model provider and push a draft PR to GitHub. A **draft is a real remote change**: its source is visible to repository readers and its creation may trigger CI or third-party automation. Operate only with explicit authorization, least-privilege credentials, and independent review.
 
-## Security model
+## Security at a glance
 
-Local proposal/receipt records, GitHub/OpenAI HTTP JSON, model structured outputs, and generated JSON source now share strict duplicate-key and non-finite-number rejection. This prevents ambiguous JSON decoding but is not authentication or semantic verification.
+**The model proposes data; trusted code enforces permissions.** GitHub issues, repository files, API responses and model output are untrusted inputs. No prompt can expand the operator's file allowlist, grant a new capability, approve a commit, or bypass publication gates.
 
-Unrequested tool-call and other unexpected model-output items are rejected rather than ignored when a structured answer is present; incomplete message status and non-text message parts also fail closed. Outbound JSON rejects non-finite numeric constants. Read-only remote status rejects receipts missing repository/base identity before contacting GitHub.
+| Boundary | Primary control | Important residual risk |
+| :--- | :--- | :--- |
+| Issue/source → model | Explicit `--allow-source-upload`, exact file allowlist, sensitive-content heuristics, bounded input | Heuristics cannot detect every secret or confidential datum; model behavior remains probabilistic |
+| Model/API → proposal | Strict JSON decoding, allowed schemas/paths, SHA-256 source binding, size/syntax checks | Syntactically valid code may be unsafe or incorrect |
+| Proposal → local commit | Human-reviewed digest plus `--approve`, clean checkout, commit/blob and file-set checks | Local files/hashes are not signed or protected against a malicious host |
+| Local commit → remote branch | Separate `--approve-publish`, current issue/base checks, create-only Git push lease | Git and its helpers are trusted; concurrent changes and ambiguous network outcomes remain possible |
+| Remote branch → draft PR | Exact head/base and open-draft verification; conflicting or closed PR is rejected | Push and PR creation are not atomic; external CI may start |
+| Local Docker verification | Operator-selected digest-pinned image, resource/network/filesystem constraints | Docker daemon, host kernel and image provenance remain operator-trusted |
 
-The model proposes **data**, not executable authority. The trusted Python/Git layer enforces file selection, inputs, consent flags, revision checks, and observable tool outcomes. Repository source, issue text, model output and remote responses are treated as untrusted until checked at the relevant boundary.
+## Authorization and invariants
 
-| Source or component | Threat | Enforced boundary | Residual risk |
-| --- | --- | --- | --- |
-| GitHub issue text | Prompt injection, disguised commands, private data | Open-issue check, size bound, known-token heuristics; no authority from issue | Model may still be influenced; private information may escape heuristics |
-| Selected repository files | Secrets, hidden paths, unsafe source | Exact operator allowlist, tracked regular UTF-8 files, protected paths, size and known-token checks | Other sensitive content can be present; data sent to provider |
-| Model response | Unauthorized edits, malformed code | Strict edit structure, original SHA, allowlisted paths, limits, Python/JSON parsing | Correct-looking code may have bugs or backdoors |
-| Local checkout and Git | Unexpected side effects, race conditions | Clean checkout, exact origin, recorded SHA, staged path and committed byte checks | Host, hooks/filters, helpers, concurrent writers or malicious repository may be unsafe |
-| Proposal and receipt files | Tampering, stale approval | Separate private files, SHA-256 binding, recorded branch/commit | Local attacker able to rewrite files can forge an unkeyed hash |
-| GitHub push and PR API | Stale branches, collision, partial effects | Exact refs, create-only push lease, issue/base rechecks, expected open draft PR | Push and PR creation are not atomic; review/CI may run automatically |
+| Operation | Required authorization | Maximum intended effect |
+| --- | --- | --- |
+| `plan` | `--allow-source-upload` and 1–5 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
+| `review` | None | Print full proposed diff/digest, **no modification** |
+| `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
+| `verify` | Explicit pinned image and command | Execute operator-selected test in constrained Docker, write commit-bound verification report |
+| `status` | None | Inspect local state; `--remote` adds read-only remote lookups |
+| `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open draft PR** |
+| `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
 
-### Authorization and scope
+The agent **does not** merge, approve PR reviews, deploy, alter GitHub workflows, delete files, create unapproved files, execute model-proposed shell commands, or mutate arbitrary paths. Security controls are deterministic checks in application code, not guarantees provided by model instructions.
 
-- **Read/plan:** explicit `--allow-source-upload` is required before issue/source data is sent to the model provider. `--allowed-file` is an exact per-file list, not a pattern or recursive grant.
-- **Local edit:** `apply` requires both `--approve` and the exact SHA-256 printed by `review`. It only writes eligible pre-existing tracked files and creates a local feature branch.
-- **Remote publish:** `publish` independently requires `--approve-publish`, a matching receipt and remote preconditions. It may create a remote branch and an **open draft PR**; it cannot merge or deploy.
-- **Combined automation:** `run` requires explicit source, local and remote authorizations but **does not pause for human inspection of the generated edit**. Treat it as a high-trust, low-risk-only mode.
+## Input, data and repository controls
 
-Nothing in GitHub issue text, repository files or model output may expand these permissions. The caller must also enforce GitHub token scopes, branch protections and organization policies independently.
+**Scope.** Paths must be relative, permitted, non-hidden and explicitly allowlisted. Eligible source files must already be tracked, regular, UTF-8 and within the bounded sizes. Protected directories/files, symlinks, path escapes, new directories and unauthorized changes are rejected. Planned edits are complete replacement contents for at most five files. Only Python and JSON source receive built-in syntax parsing; other permitted formats need independently configured validators.
 
-## GitHub Actions supply-chain boundary
+**JSON and model responses.** Proposal/receipt/verification records, remote API JSON, generated JSON source and structured model output reject duplicate object keys (including nested duplicates) and non-finite numbers. Malformed model items, unexpected message parts, explicit refusals and incomplete messages fail closed. The model has no tool-execution authority. These controls do not prove semantics or exclude all prompt-injection effects.
 
-The offline workflow uses SHA-pinned official `actions/checkout` v7 and `actions/setup-python` v7, rather than mutable major tags. It retains `permissions: contents: read` and `persist-credentials: false`, and bounds each job to 15 minutes. These controls reduce token exposure and action-tag drift but do not prove runner or action security; GitHub-hosted runners must support the actions' Node 24 runtime.
+**Data disclosure.** `plan` sends the issue title/body and full content of explicitly selected source files to the configured OpenAI endpoint. Review content may appear in terminal transcripts. Protect proposal JSON, apply receipts, verification reports, terminal output and backups. The source scanner only detects **selected common** credential patterns and control characters; it is not DLP. Classify inputs **before** permitting source upload.
 
-## Deployment and credential hygiene
+**Repository identity and Git.** The target repository must match the checkout's single exact `origin` fetch/push destination (supported HTTPS/SSH forms). A clean worktree, recorded base and exact objects are checked at relevant boundaries. Git hooks are disabled for invoked commands where supported, but credential helpers, global/local configuration, filters, the trusted Git executable and the filesystem are **not sandboxed**. Avoid shared hosts, untrusted Git installations and concurrent mutators.
 
-1. Operate in a **dedicated, clean and trusted checkout**, preferably an isolated worker. Avoid shared worktrees or concurrent mutators.
-2. Use a short-lived, repository-scoped GitHub credential with **Issues: read**; add **Contents: write** and **Pull requests: write** only for publication. Supply Git push credentials separately via an approved credential helper or SSH identity. No token belongs in a Git remote URL or command-line argument.
-3. Use a model credential with approved data-processing/retention terms. Plan mode sends issue text and the full contents of selected source files to the provider. Classify data **before** opting in. The built-in scanner is heuristic, not a DLP system.
-4. Keep proposal JSON, receipts and terminal review output private. Proposal files contain complete replacement source; terminal diff output may reveal sensitive code. Check filesystem ACLs, backups and central logging policy.
-5. Independently test and review proposed changes before publication where practical. Before merge, enforce required branch protections, CI, maintainers' reviews, code scanning and deployment policy **outside this tool**.
-6. Audit the trusted Git executable, global/local configuration, credential helpers and filters. This tool does not sandbox those dependencies. Git hooks are disabled for invoked Git commands where supported, but that does not neutralize all execution or supply-chain risks.
+**Remote publication.** The new branch uses an explicit create-only push lease and cannot overwrite another branch. Base SHA, issue update timestamp, local commit contents, remote branch and PR state are rechecked. Closed/ambiguous PR results, stale state and conflicting refs stop publication. HTTP timeouts may occur **after** a server-side effect: reconcile observed GitHub state before retrying.
 
-Repository metadata is treated as untrusted API data. Missing or malformed repository identity fields fail closed before planning or publication, rather than producing an uncaught type error.
+## Credentials and minimum privileges
 
-The repository identifier is validated as a string before regex matching; malformed programmatic inputs fail closed with `AgentError`.
+- Use a scoped, short-lived `GITHUB_TOKEN` with **Issues: read** for planning. Publishing also requires **Contents: write** and **Pull requests: write** API privileges. Git push authorization is supplied separately through approved SSH credentials or a credential helper. Repository-specific rules may impose additional restrictions.
+- Give `OPENAI_API_KEY` only the model permissions needed for planning. Verify model compatibility, provider data-handling terms and applicable project policies. Never put tokens in remote URLs, CLI arguments, proposals or shared logs.
+- Use a dedicated trusted checkout and a private directory **outside** it for proposal/receipt/test-report state. Exclusive creation uses restrictive permissions (mode `0600` where supported); this is not cryptographic integrity or a secure storage service.
+- Treat unexpected credential disclosure as an incident: stop publication, preserve non-secret evidence, revoke/rotate affected credentials and audit provider/repository activity.
 
-## Explicitly unsupported
+## Isolated verification is optional, not a universal sandbox
 
-The program does **not** support automatic merge, deployment, PR review approval, workflow modifications, broad filesystem edits, new files, deletion, arbitrary shell execution suggested by the model, automatic selection of target-project tests, cryptographic attestation, full secret detection or generalized recovery from all ambiguous failures. The operator may explicitly configure isolated test execution through `verify`.
+The POSIX-host `verify` operation requires an operator-supplied image pinned by `sha256` digest and an explicit JSON argv array. It uses a preloaded image (`--pull=never`), read-only checkout mount and root filesystem, disabled container network, no Linux capabilities, `no-new-privileges`, non-root user, limited CPU/memory/PIDs and scratch space, and a bounded timeout.
 
-It performs no live proof of generated code's security, maintainability or compliance. Python `ast.parse` and JSON parsing are syntactic checks, not runtime execution or semantic validation. Other allowed file formats need independent tooling.
+> [!CAUTION]
+> A Docker daemon with host-level privileges is a trusted dependency, **not** contained by these flags. Use a dedicated rootless/isolated worker and images from a vetted source. Native Windows Docker execution is not supported; the project's Windows **offline CI tests** are a different capability. Timeout cleanup is best effort: check for surviving containers.
 
-## Partial failure and incident response
+The test command is **operator-selected**, not discovered or proposed for execution by the model. Test success proves only that this command returned exit code zero for that recorded commit in that environment.
 
-**Do not blindly retry a failed mutating operation.** A transport timeout may mean the remote change already occurred. Consult [Architecture and recovery](docs/ARCHITECTURE.md) and inspect exact GitHub refs, issue revision, PR head/base and draft state before acting.
+### Publication gate
 
-- **After local apply failure:** preserve branch/worktree/receipt evidence; there is no automatic destructive rollback. Inspect before making further changes.
-- **After uncertain push/PR creation:** verify the exact remote branch commit and PR state. Stop if a collision, stale base, closed PR, incomplete search result or malformed PR response appears.
-- **Suspected credential exposure:** stop use, restrict access, preserve relevant non-secret evidence, revoke/rotate compromised credentials and audit GitHub/provider activity. Avoid sharing token-bearing logs.
-- **Suspected malicious generated change:** stop publication or review/merge, inspect the approved proposal and committed blobs, assess whether the change reached a remote branch, and follow the repository's incident process if necessary.
+A matching, commit-bound `.verified.json` with outcome **PASS** and exit code zero permits publication. **FAIL**, malformed, or stale records block it. Only when **no report exists**, `--approve-unverified --unverified-reason "..."` can authorize a documented exception; the reason must have 12–300 characters. This is an explicit acceptance of missing test evidence, not a claim of safety. The verification report is an unsigned local artifact; a malicious host can tamper with it.
 
-## Reporting vulnerabilities
+## Failure response and recovery
 
-Report security defects privately to the repository owner through an established private contact channel. Do not post credentials, exploit secrets or sensitive reproductions in public issues. **No response SLA or managed security-support process is advertised for this reference project.**
+**Never blindly replay a failed mutation.** First use read-only `status`, inspect `git status`, current branch/commit, proposal/receipt/report and exact remote refs. Consult the [recovery matrix](docs/ARCHITECTURE.md#failure-and-recovery-matrix).
 
-## Assurance and evidence
+| Situation | Response |
+| --- | --- |
+| `LOCAL_APPLY_INCOMPLETE` | Preserve the branch and worktree; inspect before manual repair. There is no automatic destructive rollback. |
+| Push timeout/unknown outcome | Inspect the exact remote ref SHA and compare against the approved local commit before any new push. |
+| PR creation timeout/unknown outcome | Check expected head, base, `open` state and `draft` flag; stop if they differ or search results are incomplete. |
+| Issue/base changed after push | Stop PR creation and preserve the remote branch for manual reconciliation. |
+| Suspected malicious generated edit | Block publication or review/merge, examine proposal and committed blobs, determine any remote exposure and follow incident policy. |
 
-The project has deterministic offline tests, including temporary Git repositories and simulated GitHub/OpenAI requests. Their observed scope is recorded in [VERIFICATION.md](VERIFICATION.md). They **do not establish** real GitHub authorization behavior, production security, live model compatibility, CI quality, or overall reliability in an arbitrary target repository.
+## Reporting a vulnerability
 
+Report security issues **privately** to the repository owner using an established private contact channel. Do not place exploit details, tokens or sensitive reproductions in public issues or PRs. No managed security support or response SLA is advertised.
 
-## Optional isolated verification and publication gate
+## Assurance boundaries
 
-`verify` accepts only a trusted, preloaded digest-pinned Docker image and an explicit JSON argv array. It uses a read-only checkout mount, `--network=none`, no Linux capabilities, no-new-privileges, an unprivileged container user, read-only root filesystem and bounded CPU, memory, PIDs, execution time and temporary scratch storage. No shell is implicitly introduced. **A Docker daemon remains a trusted host-level dependency; these options are not a sandbox against daemon compromise, kernel vulnerabilities or unsafe host configuration.** Run on a dedicated, rootless/isolated worker. Container image provenance and test correctness remain operator responsibilities.
+The [offline verification workflow](.github/workflows/offline-verification.yml) uses SHA-pinned official GitHub Actions, `contents: read` permissions, non-persistent checkout credentials and a 15-minute per-job timeout. This is defense in depth, not a runner/security attestation.
 
-`publish` requires a matching commit-bound PASS record. The explicit `--approve-unverified --unverified-reason` path permits an auditable exception only when no test report exists; a recorded test failure or mismatched commit can never be overridden by that flag. The verification report is a private, local, *unsigned* record under the existing trusted-filesystem assumption, not an attestation. Report output excerpts can contain sensitive text and must not be broadly shared. `status` reads local state and optionally a remote branch; it never repairs, resets, or mutates state.
-
-PR discovery rejects ambiguous duplicate matching results rather than choosing the first match. This guard is limited to the returned response page; remote state can still change after observation.
+**Not demonstrated by the offline suite:** live OpenAI/GitHub authentication and API correctness, real Docker test execution, production branch-protection behavior, complete secret detection, semantic correctness of generated code, or end-to-end security of arbitrary target repositories. Review [commit-specific evidence and open gaps](VERIFICATION.md) before making deployment decisions.

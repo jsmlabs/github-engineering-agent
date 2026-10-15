@@ -1,102 +1,94 @@
-# Verification and evidence record
+# Verification and evidence
 
-[README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md)
+[← README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
 
-This is an **evidence log**, not a certification. Separate a check that ran from an inference about behavior that was **not** exercised. A successful fixture test, build or CLI smoke test does not prove a live GitHub/OpenAI workflow is correct or safe.
+> [!IMPORTANT]
+> **Evidence ledger, not certification.** A green offline test matrix verifies the checks that actually ran for **that commit**. It does not prove authenticated OpenAI/GitHub integration, safe generated code, trusted Docker execution or production readiness.
 
-## Reference release: v0.2.0 (2026-10-15)
+## Latest verified baseline
 
-The reference package was validated on **Linux**, **Python 3.13.5**, **Git 2.47.3**. No real OpenAI request, authenticated GitHub mutation, target-project CI or deployment was part of that release validation.
+**Snapshot: 2026-10-15, before the documentation-only refresh.**
 
-| Executed check | Recorded outcome | Evidence scope |
-| --- | --- | --- |
-| `python -m compileall -q gh_agent tests` | **PASS** | Python compilation only |
-| `python -m unittest discover -s tests -v` | **38/38 PASS** | Deterministic offline tests |
-| `python -m gh_agent --help` | **PASS** | CLI smoke / argument surface |
-| `python -m gh_agent apply --help` | **PASS** | Approval flag discoverability |
-| Temporary local bare-Git push lease | **PASS** | Create-only lease rejects a competing local Git ref |
-| Mocked GitHub draft PR publication/retry | **PASS** | Reconciliation with simulated service responses |
-| Combined CLI `run` with model/GitHub stubs | **PASS** | Stubbed end-to-end control flow, not real external integration |
-| Clean ZIP extraction and offline checks | **PASS** | Packaged source can be extracted and tested |
-| Offline wheel build, install and import | **PASS** | Local Python packaging compatibility in observed environment |
-
-## Documentation-only update (2026-10-15)
-
-This documentation revision reorganizes usage, security, architecture and limitations **without changing Python code, CLI flags, proposal schema, or package version**. Follow-up validation results should be reported against the actual revision and executed commands, rather than inheriting the reference release's results automatically.
-
-| Check | Scope | Result |
-| --- | --- | --- |
-| `python scripts/verify.py` | Compilation, 38 offline tests, CLI help | **PASS** - 38/38 tests in this session |
-| Markdown local links and fragments | 5 Markdown files, 32 local links, 3 fragments | **PASS** - local link/anchor checker |
-| Documented command names/flags | 5 CLI examples compared to parser `--help` | **PASS** - valid documented options |
-| Final Git diff / changed paths | README, SECURITY, VERIFICATION, CHANGELOG, new architecture guide | **PASS** - documentation-only, confirmed by Git path review |
-
-The completed change should record the exact resulting GitHub commit and outcome in the PR/commit report; the historic v0.2.0 release outcomes remain separate.
-
-## Issue #1: fail-closed PR-response validation (2026-10-15)
-
-This bounded pilot addresses malformed GitHub pull-request search data. Prior to the fix, a response with `head: null` raised an unhandled `AttributeError`; after the fix, malformed records are rejected as `AgentError`. Valid matching, nonmatching and closed PR behavior remains covered.
-
-| Check | Outcome | Limit |
-| --- | --- | --- |
-| Reproduction against previous implementation | **REPRODUCED** | `AttributeError` from malformed nested PR fields |
-| `python scripts/verify.py` after patch | **PASS - 40/40** | Offline tests, compile, CLI help |
-| New PR-record regression tests | **PASS - 2 tests** | Simulated malformed and well-formed GitHub responses |
-| Actual GitHub response corruption and live publish | **NOT TESTED** | No authenticated end-to-end CLI run |
-
-No new Python dependency, version change, schema change or automatic merge/deployment was introduced. The test results refer to the changed source tree, not to the original v0.2.0 release.
-
-## Integrated main branch CI (2026-10-15)
-
-The model-response hardening from PR #3 and the verification/recovery changes were integrated through PR #2 into `main` at `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a`. GitHub Actions workflow run [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), triggered by that commit, reports **completed / success** for the offline verification workflow. This establishes the workflow's recorded outcome for that SHA only, not a live Docker verification, end-to-end authenticated GitHub/OpenAI operation, or production readiness.
-
-## Current strict-JSON hardening CI (2026-10-15)
-
-PR #12 head `97211ed2240fa1d68f6a1a8e5df6bc958dea9b8a` completed GitHub Actions [run 38809280416](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809280416) with **6/6 successful jobs** across Ubuntu, macOS and Windows on Python 3.11/3.13. This is offline unit, compile and CLI verification only, not live Docker or authenticated OpenAI/GitHub integration. The action-pinning changes in this subsequent update require their own new CI run.
-
-## Explicitly not verified
-
-| Concern | Evidence status |
+| Item | Observed evidence |
 | --- | --- |
-| OpenAI Responses Structured Outputs with a live chosen model | **NOT VERIFIED** |
-| Authenticated GitHub issue/PR APIs, push permissions, rate limits | **NOT VERIFIED** |
-| GitHub branch-protection/ruleset behavior and concurrent production updates | **NOT VERIFIED** |
-| Generated code semantic correctness, target-project tests or CI | **NOT VERIFIED** |
-| Real-world secret detection coverage or vulnerability assessment | **NOT VERIFIED** |
-| Native Windows/macOS operation | **NOT VERIFIED** |
-| Review approval, merge or deployment | **NOT PERFORMED** |
+| Authoritative `main` commit | [`5c698720bc6de352d08e83b6d790fbeb9d14a757`](https://github.com/jsmlabs/github-engineering-agent/commit/5c698720bc6de352d08e83b6d790fbeb9d14a757) |
+| Offline workflow on that commit | [Run 38810284708](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38810284708): **completed / success** |
+| Matrix | **6/6 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 |
+| Concrete test observation | Ubuntu/Python 3.13 job: **63 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
+| Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
+| Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
 
-## Reproduction
+The snapshot SHA and run identify the **pre-documentation** implementation. A later documentation PR or merge must be evaluated on its own head SHA and required checks; do not transfer success between commits.
 
-In a dedicated checkout with Python 3.11+ and Git installed:
+## Recent change evidence
 
-```bash
+| Scope | PR-head CI | Integrated target-branch evidence | What it establishes |
+| --- | --- | --- | --- |
+| [#12 strict JSON](https://github.com/jsmlabs/github-engineering-agent/pull/12) | [38809280416](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809280416), **6/6 pass** | [38809470388](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809470388), **success** on `afb17a292c3e4979a1a77a6fbb431c69d51a9228` | Local state, API/model JSON and source JSON parsing regressions in the offline suite |
+| [#13 CI action pinning](https://github.com/jsmlabs/github-engineering-agent/pull/13) | [38809679328](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809679328), **6/6 pass** | [38809884465](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38809884465), **success** on `e1f63c573ef30467cef54e801175818dd000595b` | SHA-pinned official GitHub Actions function in the configured matrix |
+| [#14 model/recovery hardening](https://github.com/jsmlabs/github-engineering-agent/pull/14) | [38810108472](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38810108472), **6/6 pass** | [38810284708](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38810284708), **success** on `5c698720bc6de352d08e83b6d790fbeb9d14a757` | Offline regressions for model output, outbound JSON and recovery handling |
+| Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
+
+**Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
+
+## Reproduce the offline checks
+
+Run from a trusted checkout of this repository with Python 3.11+ and Git:
+
+~~~bash
 python scripts/verify.py
 python -m unittest discover -s tests -v
 python -m gh_agent --help
-```
+~~~
 
-The default offline test suite uses temporary repositories and test doubles; it does **not** need GitHub or OpenAI credentials. Use explicit live integration tests and a representative target project **before** claiming operational readiness. A live PR must still be assessed against the target's security, tests, approvals and policy gates.
+`scripts/verify.py` runs: (1) `python -m compileall -q gh_agent tests`, (2) verbose unittest discovery, then (3) `python -m gh_agent --help`. It exits nonzero on a failed command.
 
-## Acceptance interpretation
+The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The configured GitHub Actions workflow runs these checks on **six** OS/Python combinations, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout.
 
-- **Verified locally:** the particular compile, CLI, packaging and fixture contracts recorded above for the observed environment.
-- **Partially supported:** design intent for bounded side effects and reconciliation, based on implementation and local regressions.
-- **Not verified:** production reliability, arbitrary-repository correctness, live vendor/permission compatibility and complete security.
+### Evidence classification
 
-Reference documents: [Security](SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and the release changes in [CHANGELOG.md](CHANGELOG.md).
+| Label | Required evidence |
+| --- | --- |
+| **Executed and passed** | Identified command or CI job, commit, environment and observed success |
+| **Offline simulated** | Unit tests with mocks, fixtures or local temporary Git remotes |
+| **Not tested** | No observed corresponding runtime call or environment |
+| **Inferred from implementation** | Code review supports intended controls but live behavior remains unproven |
+| **Not a guarantee** | All results: no finite test suite establishes complete security or semantic correctness |
 
+## Historic checks (retained for provenance)
 
-## Docker bind-mount path regression (2026-10-15)
+| Milestone | Observed result | Limitation |
+| --- | --- | --- |
+| Initial v0.2.0 package validation, 2026-10-15 | Linux, Python 3.13.5, Git 2.47.3; **38/38** offline unit tests, compile and CLI help | No authenticated GitHub/OpenAI calls or target-project CI |
+| Initial package build | Clean ZIP extraction/offline checks; offline wheel build/install/import reported **PASS** | Historical environment only; not re-executed in this documentation change |
+| Earlier documentation revision | `scripts/verify.py` **38/38 PASS**, local-link checks (32 links/3 fragments), CLI examples inspected | Results apply only to that prior revision |
+| Issue #1 malformed PR response | Reproduced unhandled `AttributeError` on malformed nested PR fields; **40/40** after fix | Mocked GitHub responses, no live corrupted response |
+| Docker mount-path regression | Negative tests reject actual newline, carriage return and comma in Docker mount paths before subprocess launch | Real Docker invocation not exercised |
+| Reconciliation of duplicate PR results | Offline negative test rejects multiple matching PR records | No proof against remote races or pagination beyond returned page |
+| Verification gate development | Offline tests cover Docker flags, commit-bound reports, PASS/FAIL gate and mock publication/recovery | No real Docker daemon or full live provider workflow |
 
-The Docker runner now checks actual newline and carriage-return characters in the checkout mount path, not literal backslash sequences. A regression test asserts that such paths and comma-containing paths are rejected before subprocess execution. The updated PR head must pass its own CI checks; earlier green CI runs apply to previous commits only. A real Docker daemon invocation remains untested in this session.
+Historic results are preserved as historical evidence, **not** as current measurements or independent proof of the latest SHA.
 
-## Verification-gate development history
+## Remaining verification gaps
 
-This branch adds a digest-pinned Docker test runner, commit-bound verification records, a publication gate, explicit unverified exceptions, read-only status and additional mocked failure-path tests. Docker execution is not exercised by the offline suite; its launch flags and failure handling are unit-tested with stubs. The repository's offline matrix now targets Linux, macOS and Windows on Python 3.11 and 3.13.
+| Capability | Current evidence status | Required validation before relying on it |
+| --- | --- | --- |
+| Live OpenAI Responses Structured Outputs with a chosen model | **Not verified** | Authorized live request, refusal/incomplete cases, budget and API response compatibility |
+| Authenticated GitHub issue, push and draft PR workflow | **Not verified end-to-end via CLI** | Controlled test repository, least-privilege credentials, actual remote reconciliation and permission/rate-limit behavior |
+| Actual Docker `verify` invocation | **Not verified** | Trusted POSIX host and rootless/isolated daemon, pinned image, timeout/cleanup/failure checks |
+| Generated code correctness and target project's test suite | **Not verified** | Independent code review, applicable target tests, CI and branch policies |
+| Realistic secret/DLP and vulnerability detection coverage | **Not verified** | Threat assessment and negative tests in the intended operating environment |
+| Branch protection, concurrency and adverse production races | **Not verified end-to-end** | Explicit scenarios against permitted test repos with current rules |
+| Native Windows Docker verification | **Unsupported** | POSIX execution host required; Windows offline test suite is supported |
+| Automatic PR approvals, merge, deployment | **Outside product scope** | Must be implemented and governed by a separate authorized system, if ever required |
 
-**At the time this development note was prepared:** no real Docker test or authenticated GitHub/OpenAI end-to-end run had been observed. Subsequent `main` CI evidence is recorded above; the earlier 40/40 local result is not a substitute for commit-specific CI.
+## Interpretation and maintenance
 
-## Ambiguous PR-reconciliation regression (2026-10-15)
+- **Supported by current CI:** offline Python compilation, deterministic test fixtures, CLI help and the configured platform matrix for the stated SHA.
+- **Supported by source review but not proven live:** limited side effects, draft publication checks, resource bounds and error reconciliation.
+- **Not established:** production readiness, arbitrary-repository safety, authenticated vendor integration, semantic validity of model-generated changes or exhaustive security coverage.
 
-A targeted change makes `GitHub.existing_pr` reject multiple matching open PR records instead of silently trusting the first. One offline regression test covers duplicate matches. **Local execution and live GitHub mutation were not performed during preparation**; consult the branch/PR GitHub Actions results for execution evidence. Existing API pagination and remote race limitations remain.
+When implementation or docs change, append a **commit-specific** evidence entry only after checking the actual workflow run. Record success, pending, failure or unavailable accurately. Do not replace historic observations or misstate test counts.
+
+The operating contracts live in [Architecture](docs/ARCHITECTURE.md), [Security](SECURITY.md), and the [version history](CHANGELOG.md).
