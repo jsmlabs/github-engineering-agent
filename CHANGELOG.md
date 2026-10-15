@@ -6,6 +6,7 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ### Reliability
 
+- Reject malformed OpenAI Responses message content with a controlled `AgentError` instead of an uncaught type error; add malformed and valid-response regression cases (execution pending).
 - Fail closed with `AgentError` when GitHub pull-request search results contain malformed records or nested fields, instead of leaking an unhandled exception. Added positive and negative regression tests.
 
 ### Documentation
