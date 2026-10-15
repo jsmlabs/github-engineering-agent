@@ -77,3 +77,10 @@ The default offline test suite uses temporary repositories and test doubles; it 
 - **Not verified:** production reliability, arbitrary-repository correctness, live vendor/permission compatibility and complete security.
 
 Reference documents: [Security](SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and the release changes in [CHANGELOG.md](CHANGELOG.md).
+
+
+## Verification-gate development (pending independent CI execution)
+
+This branch adds a digest-pinned Docker test runner, commit-bound verification records, a publication gate, explicit unverified exceptions, read-only status and additional mocked failure-path tests. Docker execution is not exercised by the offline suite; its launch flags and failure handling are unit-tested with stubs. The repository's offline matrix now targets Linux, macOS and Windows on Python 3.11 and 3.13.
+
+**At preparation:** no real Docker test, authenticated GitHub/OpenAI end-to-end operation, or independent platform matrix result has been observed. Actual CI status and defects must be inspected before merge. The prior 40/40 historical result does not establish that this branch passes.
