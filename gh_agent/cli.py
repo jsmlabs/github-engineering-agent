@@ -223,7 +223,7 @@ def verify(args) -> None:
 def status(args) -> None:
     """Local, read-only recovery snapshot; no implicit GitHub mutations."""
     checkout = Path(args.checkout).resolve(strict=True)
-    proposal = Path(args.proposal).resolve(strict=True)
+    proposal = Path(args.proposal).resolve(strict=False)
     outside_checkout(checkout, proposal)
     receipt_path = Path(str(proposal) + ".applied.json")
     if not receipt_path.exists():
