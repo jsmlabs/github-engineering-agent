@@ -46,6 +46,10 @@ This bounded pilot addresses malformed GitHub pull-request search data. Prior to
 
 No new Python dependency, version change, schema change or automatic merge/deployment was introduced. The test results refer to the changed source tree, not to the original v0.2.0 release.
 
+## Combined PR #2/#3 validation (pending current-head CI)
+
+The malformed-model-content hardening and two unit regression tests from PR #3 are integrated into this development branch alongside the verification and recovery controls. The combined source requires current-head CI validation; no live Docker isolation or authenticated external API end-to-end test has been executed here. Do not infer success from earlier branch commits.
+
 ## Explicitly not verified
 
 | Concern | Evidence status |
@@ -77,3 +81,14 @@ The default offline test suite uses temporary repositories and test doubles; it 
 - **Not verified:** production reliability, arbitrary-repository correctness, live vendor/permission compatibility and complete security.
 
 Reference documents: [Security](SECURITY.md), [Architecture](docs/ARCHITECTURE.md), and the release changes in [CHANGELOG.md](CHANGELOG.md).
+
+
+## Docker bind-mount path regression (2026-10-15)
+
+The Docker runner now checks actual newline and carriage-return characters in the checkout mount path, not literal backslash sequences. A regression test asserts that such paths and comma-containing paths are rejected before subprocess execution. The updated PR head must pass its own CI checks; earlier green CI runs apply to previous commits only. A real Docker daemon invocation remains untested in this session.
+
+## Verification-gate development (pending independent CI execution)
+
+This branch adds a digest-pinned Docker test runner, commit-bound verification records, a publication gate, explicit unverified exceptions, read-only status and additional mocked failure-path tests. Docker execution is not exercised by the offline suite; its launch flags and failure handling are unit-tested with stubs. The repository's offline matrix now targets Linux, macOS and Windows on Python 3.11 and 3.13.
+
+**At preparation:** no real Docker test, authenticated GitHub/OpenAI end-to-end operation, or independent platform matrix result has been observed. Actual CI status and defects must be inspected before merge. The prior 40/40 historical result does not establish that this branch passes.

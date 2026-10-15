@@ -5,7 +5,7 @@
 [Getting started](#quick-start) · [CLI workflow](#choose-a-workflow) · [Safety model](#safety-and-limits) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Verification](VERIFICATION.md) · [Changelog](CHANGELOG.md)
 
 > [!IMPORTANT]
-> **v0.2.0 is a locally tested reference implementation, not a production-validated autonomous engineer.** It can propose edits and, with explicit authorization, commit and publish them as a **draft** pull request. It does **not** run target-project tests, merge, approve reviews, or deploy. Real OpenAI and GitHub end-to-end interactions have not been verified.
+> **v0.2.0 is a locally tested reference implementation, not a production-validated autonomous engineer.** It can propose edits and, with explicit authorization, commit and publish them as a **draft** pull request. The optional verification command executes only an operator-configured test inside a constrained Docker container; it does **not** merge, approve reviews, or deploy. Real OpenAI and GitHub end-to-end interactions have not been verified.
 
 ## What it does
 
@@ -24,6 +24,8 @@ Open issue + explicitly approved files
                 |
       independent review/tests    Operator's responsibility
                 |
+            verify               Commit-bound isolated tests (or explicit exception)
+                |
             publish              Verify remote state; branch + draft PR
                 |
        human review and CI        No automatic merge or deployment
@@ -34,10 +36,12 @@ Open issue + explicitly approved files
 | `plan` | Private JSON proposal; **two** model requests | `--allow-source-upload`, explicit `--allowed-file` scope |
 | `review` | Full unified diff, exact proposal SHA-256; no mutation | None |
 | `apply` | New local branch, validated commit, private receipt | `--approve` and matching `--expected-sha256` |
-| `publish` | Create-only remote branch push, verified **draft** PR | `--approve-publish` |
+| `verify` | Container-isolated, commit-bound test record | Pinned image and explicit command |
+| `status` | Read-only local recovery view; optional remote ref check | None |
+| `publish` | Create-only push, verified **draft** PR after passing gate | `--approve-publish`, verification or explicit exception |
 | `run` | Opt-in `plan → apply → publish` without an inspection pause | Source-upload, local-write and remote-publish approvals |
 
-**Recommended:** use `plan → review → apply → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
+**Recommended:** use `plan → review → apply → verify → publish`. `run` intentionally skips the per-proposal human review; it is **not** a default unattended workflow. All edits must still pass deterministic checks, which do not establish semantic correctness.
 
 ## Quick start
 
@@ -97,7 +101,22 @@ python -m gh_agent apply \
 
 **Before publication:** inspect the commit, run the target project's applicable tests in a trusted environment, and complete any required review. The agent does **not** perform those checks.
 
-### 5. Publish as a draft pull request
+### 5. Verify the exact commit before publishing
+
+Use a trusted, preloaded OCI/Docker image pinned by its SHA-256 digest. The operator supplies an explicit argv array. Docker is an external trusted dependency: run with a trusted rootless/isolated daemon, not a shared privileged host daemon. The checkout is mounted read-only; the container has no network, Linux capabilities, or ambient credentials, with memory/CPU/PID and time limits. Docker is required for live test execution, not for the offline CLI tests.
+
+```bash
+python -m gh_agent verify \
+  --checkout /absolute/path/to/checkout \
+  --proposal /private/location/issue-123.json \
+  --image registry.example/test-image@sha256:YOUR_64_HEX_DIGEST \
+  --command-json '["python","-m","unittest","discover","-s","tests"]' \
+  --timeout 120
+```
+
+The private `.verified.json` record is tied to the approved proposal SHA and exact local commit. A failing test is a hard block. If tests cannot be run, `publish` requires both `--approve-unverified` and a substantial `--unverified-reason`; this does not override recorded test failures. Rechecking without changing the commit requires inspecting/removing the old verification record through a deliberate operator action.
+
+### 6. Publish as a draft pull request
 
 ```bash
 python -m gh_agent publish \
@@ -107,6 +126,21 @@ python -m gh_agent publish \
 ```
 
 `publish` checks the receipt and exact committed Git objects, issue update timestamp, default branch and current remote refs. It pushes the specific new branch using a **create-only lease**, then creates or verifies an **open draft PR** with the expected head commit. A closed PR, changed base, ambiguous search result or unexpected remote branch blocks publication.
+
+Check recovery state after an interrupted apply/publish:
+
+```bash
+python -m gh_agent status --checkout /absolute/path/to/checkout \
+  --proposal /private/location/issue-123.json --remote
+```
+
+`status` never changes local or remote state. `publish` reconciles an existing exact branch and draft PR before writing and refuses conflicting remote state. An explicit exception for unavailable tests is:
+
+```bash
+python -m gh_agent publish --checkout /absolute/path/to/checkout \
+  --proposal /private/location/issue-123.json --approve-publish \
+  --approve-unverified --unverified-reason "Trusted test image unavailable in offline worker"
+```
 
 ## Choose a workflow
 
@@ -128,10 +162,12 @@ python -m gh_agent run \
   --model YOUR_STRUCTURED_OUTPUT_MODEL \
   --allowed-file src/feature.py \
   --output /private/location/issue-123.json \
-  --allow-source-upload --approve-local --approve-publish
+  --allow-source-upload --approve-local --approve-publish \
+  --test-image registry.example/test-image@sha256:YOUR_64_HEX_DIGEST \
+  --test-command-json '["python","-m","unittest","discover","-s","tests"]'
 ```
 
-Use `run` only if your process allows publishing **unreviewed AI-generated edits as drafts**. The agent may stop partway through after a commit or push; review its actual state before retrying.
+Use `run` only if your process allows publishing **unreviewed AI-generated edits as drafts**. Without a configured test image and command, `run` requires both `--approve-unverified` and a justified `--unverified-reason` before planning. The agent may stop partway through after a commit or push; review its actual state before retrying.
 
 ## Safety and limits
 
@@ -179,7 +215,7 @@ For state transitions and failure boundaries, read [Architecture and recovery](d
 
 ## Compatibility and provenance
 
-**v0.2.0 uses proposal schema 2.** v0.1.0/schema-1 proposals and receipts are **not** compatible. Recreate proposals with explicit file authorization. No in-place migration is provided. This is a standalone CLI, not a background agent or hosted service; it has no job queue, scheduling, target test runner, proof of business-invariant preservation, or automatic merge/deploy support.
+**Proposal schema 2 is unchanged; the verification record has its own schema 1.** v0.2.0 uses proposal schema 2. v0.1.0/schema-1 proposals and receipts are **not** compatible. Recreate proposals with explicit file authorization. No in-place migration is provided. This is a standalone CLI, not a background agent or hosted service; it has no job queue, scheduling, target test runner, proof of business-invariant preservation, or automatic merge/deploy support.
 
 Architecture and engineering conventions are informed by the separately maintained [AI Agent Execution Contracts](https://github.com/jsmlabs/chatgpt-context/blob/main/knowledge/ai-agent-execution-contracts.md), [Agent Workflow Architect](https://github.com/jsmlabs/chatgpt-context/blob/main/prompts/agent-workflow-architect.md), [Repository Engineering Execution](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/repository-engineering-execution.md), and [Verification Engineering](https://github.com/jsmlabs/chatgpt-context/blob/main/instructions/verification-engineering.md). Implementation-specific evidence takes precedence over aspirational specifications.
 

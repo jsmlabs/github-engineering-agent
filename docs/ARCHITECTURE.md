@@ -112,3 +112,10 @@ Terminal outcomes can be **success**, **failure before effect**, or **partial/un
 - There is no resumable job store, queue, background scheduler or atomic cross-service transaction. The operator manages partial state.
 
 See [SECURITY.md](../SECURITY.md) for threat preconditions and [VERIFICATION.md](../VERIFICATION.md) for executed versus unverified checks.
+
+
+## Verification gate and recovery extension
+
+After `apply`, `verify` binds a separate immutable-create JSON report to the proposal SHA-256, exact commit and branch, using an explicitly configured digest-pinned Docker image and command argv. The checkout is mounted read-only; container execution has network disabled, unprivileged user, read-only root, limited CPU/memory/PIDs, and a bounded timeout. The Docker daemon and image are trusted dependencies and must be isolated by the operator.
+
+`publish` checks the report before any GitHub mutation. Only an exact PASS with zero exit status is accepted; failed or stale reports block publication. When no report exists, an explicit unverified authorization and reason are necessary. `status` prints the current local commit/branch/cleanliness and verification state, with an optional exact remote-branch lookup. It does not repair or retry automatically. Existing `publish` reconciliation remains idempotent for an exact remote branch and open draft PR; changing bases, issues, or commits still fail closed.

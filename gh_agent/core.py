@@ -128,7 +128,7 @@ def committed_blob(checkout: Path, commit: str, path: str) -> bytes:
 def assert_checkout(checkout: Path, repo: str, base: str, *, require_base: bool) -> str:
     require_repo(repo)
     root = checkout.resolve(strict=True)
-    if run_git(root, "rev-parse", "--show-toplevel") != str(root):
+    if Path(run_git(root, "rev-parse", "--show-toplevel")).resolve(strict=True) != root:
         raise AgentError("Checkout must be the Git worktree root")
     if run_git(root, "status", "--porcelain", "--untracked-files=all"):
         raise AgentError("Checkout must be completely clean")

@@ -14,6 +14,7 @@ from unittest.mock import patch
 from gh_agent import cli
 from gh_agent.core import (AgentError, assert_checkout, check_path, guarded_file, private_json_write, read_selected, sha, tracked_sources, validate_edits, validate_selection, authorized_files, validate_source_sensitivity, validate_content_syntax, remote_branch_sha, run_git)
 from gh_agent.services import GitHub, Model
+from gh_agent.verification import check_gate, run_isolated, verification_path
 
 
 def git(root: Path, *args: str) -> str:
@@ -29,9 +30,10 @@ class AgentTest(unittest.TestCase):
         self.checkout = self.root / "checkout"
         self.checkout.mkdir()
         git(self.checkout, "init", "-b", "main")
+        git(self.checkout, "config", "core.autocrlf", "false")
         git(self.checkout, "config", "user.email", "tester@example.invalid")
         git(self.checkout, "config", "user.name", "Tester")
-        (self.checkout / "app.py").write_text("x = 1\n", encoding="utf-8")
+        (self.checkout / "app.py").write_text("x = 1\n", encoding="utf-8", newline="")
         git(self.checkout, "add", "app.py")
         git(self.checkout, "commit", "-m", "initial")
         self.base = git(self.checkout, "rev-parse", "HEAD")
@@ -46,6 +48,105 @@ class AgentTest(unittest.TestCase):
             "issue_updated_at": "2026-10-15T00:00:00Z", "model": "stub", "summary": "Change value",
             "edits": [{"path": "app.py", "base_sha256": sha(original.encode()), "content": "x = 2\n"}],
         }
+
+    def test_publish_gate_rejects_missing_verification(self):
+        private_json_write(self.planfile, self.proposal())
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        receipt = json.loads(Path(str(self.planfile) + ".applied.json").read_text())
+        with self.assertRaisesRegex(AgentError, "Missing commit-bound"):
+            check_gate(self.planfile, receipt, override=False, reason=None)
+        with self.assertRaisesRegex(AgentError, "requires --unverified-reason"):
+            check_gate(self.planfile, receipt, override=True, reason="short")
+        self.assertIn("EXCEPTION:", check_gate(self.planfile, receipt, override=True,
+                                              reason="Tests cannot run in this restricted environment"))
+
+    def test_verify_commit_records_exact_commit_and_allows_gate(self):
+        from gh_agent.verification import verify_commit
+        private_json_write(self.planfile, self.proposal())
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        receipt = json.loads(Path(str(self.planfile) + ".applied.json").read_text())
+        image = "trusted/image@sha256:" + "a" * 64
+        with patch("gh_agent.verification.run_isolated", return_value={
+            "exit_code": 0, "stdout_excerpt": "ok", "stderr_excerpt": ""}):
+            report = verify_commit(self.checkout, self.planfile, self.proposal(), receipt,
+                                   image, ["python", "-m", "unittest"], 30)
+        self.assertEqual(report["commit"], receipt["commit"])
+        self.assertEqual(report["outcome"], "PASS")
+        self.assertEqual(check_gate(self.planfile, receipt, override=False, reason=None), "PASS")
+        with self.assertRaisesRegex(AgentError, "already exists"):
+            verify_commit(self.checkout, self.planfile, self.proposal(), receipt,
+                          image, ["python", "-m", "unittest"], 30)
+
+    def test_gate_commit_binding_and_failure_are_fail_closed(self):
+        receipt = {"proposal_sha256": "a" * 64, "commit": "b" * 40, "branch": "agent/example"}
+        report = {"schema": 1, **receipt, "exit_code": 0, "outcome": "PASS"}
+        private_json_write(verification_path(self.planfile), report)
+        self.assertEqual(check_gate(self.planfile, receipt, override=False, reason=None), "PASS")
+        report["commit"] = "c" * 40
+        verification_path(self.planfile).write_text(json.dumps(report))
+        with self.assertRaisesRegex(AgentError, "Stale"):
+            check_gate(self.planfile, receipt, override=True, reason="Cannot execute tests here")
+        report["commit"] = receipt["commit"]
+        report["outcome"] = "FAIL"
+        report["exit_code"] = 1
+        verification_path(self.planfile).write_text(json.dumps(report))
+        with self.assertRaisesRegex(AgentError, "test failure"):
+            check_gate(self.planfile, receipt, override=True, reason="Cannot execute tests here")
+
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
+    def test_isolated_test_rejects_unsafe_configuration(self):
+        image = "trusted/image@sha256:" + "a" * 64
+        with self.assertRaisesRegex(AgentError, "sha256"):
+            run_isolated(self.checkout, "python:latest", ["python", "-V"], 10)
+        with self.assertRaisesRegex(AgentError, "JSON string array"):
+            run_isolated(self.checkout, image, ["python", ""], 10)
+        with self.assertRaisesRegex(AgentError, "timeout"):
+            run_isolated(self.checkout, image, ["python", "-V"], 999)
+        with patch("gh_agent.verification.subprocess.run", side_effect=FileNotFoundError()):
+            with self.assertRaisesRegex(AgentError, "Docker unavailable"):
+                run_isolated(self.checkout, image, ["python", "-V"], 10)
+
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
+    def test_isolated_test_rejects_control_characters_in_mount_path(self):
+        image = "example/test@sha256:" + "a" * 64
+        for character in ("\n", "\r", ","):
+            with self.subTest(character=repr(character)), patch("gh_agent.verification.subprocess.run") as run:
+                with self.assertRaisesRegex(AgentError, "POSIX path without mount delimiters"):
+                    run_isolated(Path(str(self.checkout) + character + "unsafe"), image, ["python", "-V"], 10)
+                run.assert_not_called()
+
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
+    def test_isolated_test_enforces_container_flags(self):
+        image = "trusted/image@sha256:" + "a" * 64
+        captured = {}
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return subprocess.CompletedProcess(argv, 0, b"ok", b"")
+        with patch("gh_agent.verification.subprocess.run", side_effect=fake_run):
+            result = run_isolated(self.checkout, image, ["python", "-V"], 15)
+        self.assertEqual(result["exit_code"], 0)
+        for option in ("--network=none", "--read-only", "--cap-drop=ALL",
+                       "--pids-limit=64", "--memory=512m", "--pull=never"):
+            self.assertIn(option, captured["argv"])
+        self.assertEqual(captured["argv"][-3:], [image, "python", "-V"])
+
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
+    def test_isolated_test_timeout_fails_closed(self):
+        image = "trusted/image@sha256:" + "a" * 64
+        with patch("gh_agent.verification.subprocess.run",
+                   side_effect=subprocess.TimeoutExpired(["docker"], 2)):
+            with self.assertRaisesRegex(AgentError, "timed out"):
+                run_isolated(self.checkout, image, ["python"], 2)
+
+    def test_status_read_only_incomplete_receipt(self):
+        output = StringIO()
+        with redirect_stdout(output):
+            cli.status(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                         remote=False))
+        self.assertIn("NO_APPLY_RECEIPT", output.getvalue())
+        self.assertEqual(git(self.checkout, "status", "--porcelain"), "")
 
     def test_path_escape_and_protected(self):
         for p in ["../foo.py", ".env", ".github/workflows/ci.yml", "node_modules/a.js", "src/../../a.py", "/tmp/a.py", "src/.hidden/a.py", "credentials/a.py", "app.exe", "Dockerfile"]:
@@ -115,14 +216,14 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
 
     def test_run_auto_requires_all_consents_before_side_effects(self):
-        args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=True, allowed_file=["app.py"], approve_local=False, approve_publish=True)
+        args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=True, allowed_file=["app.py"], approve_local=False, approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests")
         with self.assertRaises(AgentError):
             cli.run_auto(args)
         self.assertFalse(self.planfile.exists())
         self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
 
     def test_run_auto_calls_pipeline_when_opted_in(self):
-        args = argparse.Namespace(checkout="repo", output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=True, allowed_file=["app.py"], approve_local=True, approve_publish=True)
+        args = argparse.Namespace(checkout="repo", output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=True, allowed_file=["app.py"], approve_local=True, approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests")
         calls = []
         def fake_plan(a):
             calls.append("plan")
@@ -130,6 +231,18 @@ class AgentTest(unittest.TestCase):
         with patch.object(cli, "plan", side_effect=fake_plan), patch.object(cli, "apply", side_effect=lambda a: calls.append("apply")), patch.object(cli, "publish", side_effect=lambda a: calls.append("publish")):
             cli.run_auto(args)
         self.assertEqual(calls, ["plan", "apply", "publish"])
+
+    def test_run_rejects_missing_test_plan_before_mutation(self):
+        args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile),
+            repo="example/safe-repo", issue=7, model="stub", allowed_file=["app.py"],
+            allow_source_upload=True, approve_local=True, approve_publish=True)
+        with self.assertRaisesRegex(AgentError, "without tests"):
+            cli.run_auto(args)
+        self.assertFalse(self.planfile.exists())
+        args.test_image = "test@sha256:" + "a" * 64
+        with self.assertRaisesRegex(AgentError, "both"):
+            cli.run_auto(args)
+        self.assertFalse(self.planfile.exists())
 
     def test_data_disclosure_requires_opt_in(self):
         with self.assertRaises(AgentError):
@@ -201,7 +314,7 @@ class AgentTest(unittest.TestCase):
                 self_test.assertEqual(data["draft"], True)
                 remote["pr"] = {"state": "open", "draft": True, "html_url": "https://github.com/example/safe-repo/pull/1", "head": {"sha": receipt["commit"]}}
         self_test = self
-        args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve_publish=True)
+        args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests")
         with patch.object(cli, "run_git", mock_git), patch.object(cli, "remote_branch_sha", mock_remote_branch), patch.object(cli, "GitHub", MockGH):
             cli.publish(args)
             cli.publish(args)  # retry discovers existing PR; no second push or PR
@@ -245,7 +358,7 @@ class AgentTest(unittest.TestCase):
 
         with patch.object(cli, "run_git", mock_git), patch.object(cli, "remote_branch_sha", remote_branch), patch.object(cli, "GitHub", MockGH):
             with self.assertRaisesRegex(AgentError, "Remote base moved during publication"):
-                cli.publish(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve_publish=True))
+                cli.publish(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests"))
         self.assertFalse(state["pr_created"])
         self.assertEqual(state["branch"], receipt["commit"])
 
@@ -286,7 +399,7 @@ class AgentTest(unittest.TestCase):
         subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
         branch = "agent/issue-7-test"
         run_git(self.checkout, "push", f"--force-with-lease=refs/heads/{branch}:", str(remote), f"HEAD:refs/heads/{branch}")
-        (self.checkout / "app.py").write_text("x = 42\n", encoding="utf-8")
+        (self.checkout / "app.py").write_text("x = 42\n", encoding="utf-8", newline="")
         git(self.checkout, "add", "app.py")
         git(self.checkout, "commit", "-m", "second")
         with self.assertRaisesRegex(AgentError, "Git push failed"):
@@ -298,6 +411,24 @@ class AgentTest(unittest.TestCase):
             with self.assertRaises(AgentError): gh.issue(5)
         with patch.object(gh, "get", return_value={"number": 5, "state": "closed", "title": "X"}):
             with self.assertRaises(AgentError): gh.issue(5)
+
+    def test_model_rejects_malformed_message_content(self):
+        for malformed in (None, "text", {"type": "output_text"}, 123, [None]):
+            with self.subTest(content=malformed):
+                response = {"status": "completed", "output": [
+                    {"type": "message", "content": malformed},
+                ]}
+                with patch("gh_agent.services.json_request", return_value=response):
+                    with self.assertRaisesRegex(AgentError, "Malformed model message content"):
+                        Model("key", "name").ask("instructions", {"a": 1}, {"type": "object"}, "test")
+
+    def test_model_accepts_single_structured_message(self):
+        response = {"status": "completed", "output": [
+            {"type": "reasoning", "content": None},
+            {"type": "message", "content": [{"type": "output_text", "text": '{"ok": true}'}]},
+        ]}
+        with patch("gh_agent.services.json_request", return_value=response):
+            self.assertEqual(Model("key", "name").ask("instructions", {}, {"type": "object"}, "test"), {"ok": True})
 
     def test_model_incomplete_is_blocked(self):
         with patch("gh_agent.services.json_request", return_value={"status": "incomplete", "output": []}):
@@ -364,7 +495,7 @@ class AgentTest(unittest.TestCase):
         obj["summary"] = "tampered after approval"
         self.planfile.write_text(json.dumps(obj))
         with self.assertRaisesRegex(AgentError, "Proposal changed"):
-            cli.publish(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve_publish=True))
+            cli.publish(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests"))
 
     def test_legacy_schema_cannot_bypass_scoped_authorization(self):
         record = self.proposal()
@@ -398,7 +529,7 @@ class AgentTest(unittest.TestCase):
                 gh.existing_pr("agent/test", "main")
 
     def test_no_output_for_suspicious_source_before_model_call(self):
-        (self.checkout / "app.py").write_text("OPENAI_API_KEY=sk-" + "x" * 40 + "\n")
+        (self.checkout / "app.py").write_text("OPENAI_API_KEY=sk-" + "x" * 40 + "\n", newline="")
         git(self.checkout, "add", "app.py")
         git(self.checkout, "commit", "-m", "test sensitive")
         new_sha = git(self.checkout, "rev-parse", "HEAD")
@@ -429,7 +560,7 @@ class AgentTest(unittest.TestCase):
                 return {"summary": "fix", "edits": [{"path": "app.py", "base_sha256": sha(b"x = 1\n"), "content": "x = 2\n"}]}
         args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile),
             repo="example/safe-repo", issue=7, model="stub", allowed_file=["app.py"],
-            allow_source_upload=True, approve_local=True, approve_publish=True)
+            allow_source_upload=True, approve_local=True, approve_publish=True, approve_unverified=True, unverified_reason="Offline mocked publish has no executable target tests")
         published = []
         with patch.object(cli, "GitHub", MockGH), patch.object(cli, "Model", MockModel), \
              patch.object(cli, "publish", side_effect=lambda a: published.append(a)):

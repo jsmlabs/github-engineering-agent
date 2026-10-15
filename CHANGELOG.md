@@ -4,8 +4,18 @@ Notable changes are grouped by release. The package uses its declared version in
 
 ## Unreleased
 
+### Verification and recovery (development)
+
+- Reject actual newline and carriage-return characters in Docker bind-mount paths before invoking Docker; add a no-subprocess regression test.
+- Added optional operator-configured Docker tests using an explicit digest-pinned image and bounded, no-network container invocation.
+- Required an exact commit-bound passing verification record before draft publication, with an explicit auditable exception only for unexecuted tests.
+- Added read-only local/remote status inspection, negative verification tests and a multi-platform offline CI matrix.
+- Kept proposal schema 2 and package version 0.2.0 unchanged pending release validation.
+
+
 ### Reliability
 
+- Integrate fail-closed OpenAI Responses message-content validation and its positive/negative regression tests from PR #3.
 - Fail closed with `AgentError` when GitHub pull-request search results contain malformed records or nested fields, instead of leaking an unhandled exception. Added positive and negative regression tests.
 
 ### Documentation
