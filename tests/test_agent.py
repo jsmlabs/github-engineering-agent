@@ -62,6 +62,77 @@ class AgentTest(unittest.TestCase):
                 self.assertIn(expected, stdout.getvalue())
                 self.assertIn("gh-engineer", stdout.getvalue())
 
+    def test_menu_refuses_noninteractive_input_without_side_effects(self):
+        from contextlib import redirect_stderr
+        with (redirect_stdout(StringIO()), redirect_stderr(StringIO()) as stderr,
+              patch.object(cli, "plan") as plan, patch.object(cli, "publish") as publish,
+              patch("builtins.input") as prompt):
+            self.assertEqual(cli.main(["menu", "--checkout", str(self.checkout)]), 2)
+            prompt.assert_not_called()
+            plan.assert_not_called()
+            publish.assert_not_called()
+        self.assertIn("interactive terminal", stderr.getvalue())
+
+    def test_menu_navigation_is_bounded_and_read_only(self):
+        class FakeTTY(StringIO):
+            def isatty(self):
+                return True
+
+        private_json_write(self.planfile, self.proposal())
+        before = self.planfile.read_bytes()
+        terminal_in = FakeTTY("9\n1\n2\n3\n" + str(self.planfile) + "\n4\n\n5\n0\n")
+        terminal_out = FakeTTY()
+        with (patch.object(cli.sys, "stdin", terminal_in),
+              patch.object(cli.sys, "stdout", terminal_out),
+              patch.object(cli, "GitHub") as github,
+              patch.object(cli, "Model") as model,
+              patch.object(cli, "apply") as apply,
+              patch.object(cli, "publish") as publish,
+              patch.object(cli, "run_auto") as run_auto):
+            self.assertEqual(cli.main(["menu", "--checkout", str(self.checkout),
+                                       "--repo", "example/safe-repo", "--no-color"]), 0)
+            github.assert_not_called()
+            model.assert_not_called()
+            apply.assert_not_called()
+            publish.assert_not_called()
+            run_auto.assert_not_called()
+        output = terminal_out.getvalue()
+        for expected in ("Unknown option", "SAFE FIVE-STEP WORKFLOW",
+                         "Local preflight passed", "Stage: PROPOSED",
+                         "NO_APPLY_RECEIPT", "GET STARTED", "Menu closed"):
+            self.assertIn(expected, output)
+        self.assertNotIn("\x1b[", output)
+        self.assertEqual(self.planfile.read_bytes(), before)
+        self.assertFalse(Path(str(self.planfile) + ".applied.json").exists())
+        self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
+
+    def test_menu_color_is_optional_and_respects_no_color(self):
+        class FakeTTY(StringIO):
+            def isatty(self):
+                return True
+
+        with patch.object(cli.sys, "stdout", FakeTTY()):
+            with patch.dict(os.environ, {"TERM": "xterm", "NO_COLOR": ""}):
+                self.assertEqual(cli.menu_style("hello", "1;36"), "hello")
+            with patch.dict(os.environ, {"TERM": "xterm"}):
+                with patch.dict(os.environ, {"NO_COLOR": None}) if False else patch.dict(os.environ, {}, clear=False):
+                    # A caller's NO_COLOR is handled deterministically either way.
+                    self.assertEqual(cli.menu_style("hello", "1;36", no_color=True), "hello")
+
+    def test_menu_handles_eof_and_has_iteration_limit(self):
+        class FakeTTY(StringIO):
+            def isatty(self):
+                return True
+
+        with (patch.object(cli.sys, "stdin", FakeTTY("")),
+              patch.object(cli.sys, "stdout", FakeTTY()) as out):
+            self.assertEqual(cli.main(["menu"]), 0)
+        self.assertIn("Menu closed", out.getvalue())
+        with (patch.object(cli.sys, "stdin", FakeTTY("9\n" * 42)),
+              patch.object(cli.sys, "stdout", FakeTTY()) as out):
+            self.assertEqual(cli.main(["menu"]), 0)
+        self.assertIn("session limit reached", out.getvalue())
+
     def test_cli_checkout_defaults_and_explicit_approvals(self):
         for argv in (
             ["review", "--proposal", str(self.planfile)],
