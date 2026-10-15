@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 
 from .core import (
@@ -15,7 +16,7 @@ from .core import (
     sha, tracked_sources, validate_edits, validate_selection, authorized_files, validate_source_sensitivity, committed_blob, remote_branch_sha,
 )
 from .services import EDIT_SCHEMA, GitHub, Model
-from .verification import check_gate, verify_commit
+from .verification import check_gate, verify_commit, verification_path
 
 
 def outside_checkout(checkout: Path, output: Path) -> None:
@@ -378,42 +379,175 @@ def run_auto(args) -> None:
                              ready_for_review=getattr(args, "ready_for_review", False)))
 
 
+
+def overview(args=None) -> None:
+    """A short, read-only home screen; no network or filesystem side effects."""
+    print("GitHub Engineering Agent")
+    print("Issue -> reviewed changes -> local commit -> verified pull request")
+    print()
+    print("GET STARTED")
+    print("  gh-engineer guide                  Five-step, copyable workflow")
+    print("  gh-engineer doctor                 Check this workstation and checkout")
+    print("  gh-engineer plan --help            Start from an approved GitHub issue")
+    print()
+    print("YOUR WORKFLOW")
+    print("  plan -> review -> apply -> verify -> publish")
+    print("  next --proposal PATH               See the next safe step")
+    print("  status --proposal PATH             Inspect existing local state")
+    print()
+    print("Advanced: run (skips proposal-specific review; explicit approvals required).")
+    print("Each action has its own help: gh-engineer COMMAND --help")
+
+
+def guide(args) -> None:
+    """Print examples without reading secrets or running model/Git operations."""
+    print("SAFE FIVE-STEP WORKFLOW (run from the TARGET checkout root)")
+    print("Prerequisites: Python 3.11+, Git, GITHUB_TOKEN and OPENAI_API_KEY.")
+    print("Proposal JSON must be OUTSIDE the checkout; files must be explicitly scoped.")
+    print()
+    print("1. PLAN  (uploads selected source only with explicit consent)")
+    print("   gh-engineer plan --repo OWNER/REPO --issue 123 --model MODEL --allowed-file src/app.py --output ../issue-123.json --allow-source-upload")
+    print("2. REVIEW  (shows all proposed code and its SHA-256; no changes)")
+    print("   gh-engineer review --proposal ../issue-123.json")
+    print("3. APPLY  (use the exact SHA-256 from review)")
+    print("   gh-engineer apply --proposal ../issue-123.json --expected-sha256 REVIEWED_SHA256 --approve")
+    print("4. VERIFY  (trusted, already present digest-pinned Docker image)")
+    print("   gh-engineer verify --help")
+    print("5. PUBLISH  (requires PASS or explicit, justified no-test exception)")
+    print("   gh-engineer publish --proposal ../issue-123.json --approve-publish")
+    print()
+    print("CHECKS: gh-engineer doctor | gh-engineer next --proposal ../issue-123.json")
+    print("Recovery: gh-engineer status --proposal ../issue-123.json --remote")
+    print("Windows: commands above are single-line; consult 'verify --help' for shell-specific JSON quoting.")
+    print("The CLI cannot approve, merge or deploy pull requests. 'run' is an advanced opt-in mode.")
+
+
+def doctor(args) -> None:
+    """Check local prerequisites without contacting GitHub or OpenAI."""
+    print("WORKSTATION CHECK (local/read-only)")
+    if sys.version_info < (3, 11):
+        raise AgentError("Python 3.11 or newer is required")
+    print(f"[OK] Python {sys.version_info.major}.{sys.version_info.minor}")
+    if not shutil.which("git"):
+        raise AgentError("Git is not installed or not available on PATH")
+    print("[OK] Git executable found")
+
+    checkout = Path(args.checkout).resolve(strict=False)
+    if not checkout.is_dir():
+        raise AgentError("Checkout directory does not exist")
+    root = Path(run_git(checkout, "rev-parse", "--show-toplevel")).resolve(strict=True)
+    if root != checkout:
+        raise AgentError("Run from the Git worktree root, or supply --checkout ROOT")
+    print("[OK] Git checkout root")
+    dirty = bool(run_git(checkout, "status", "--porcelain", "--untracked-files=all"))
+    if dirty:
+        raise AgentError("Checkout is not clean; inspect git status before planning")
+    print("[OK] Clean checkout")
+    if args.repo:
+        assert_checkout(checkout, args.repo, "", require_base=False)
+        print("[OK] Fetch and push origins match --repo")
+    else:
+        print("[INFO] Remote repository identity not checked (add --repo OWNER/REPO)")
+    print(f"[INFO] GITHUB_TOKEN: {'set' if os.environ.get('GITHUB_TOKEN') else 'not set'}")
+    print(f"[INFO] OPENAI_API_KEY: {'set' if os.environ.get('OPENAI_API_KEY') else 'not set'}")
+    print(f"[INFO] Docker executable: {'found' if shutil.which('docker') else 'not found'} (not tested)")
+    print("Local preflight passed. No network, model request, or mutation was performed.")
+
+
+def next_step(args) -> None:
+    """Give read-only, state-aware guidance without attempting any recovery."""
+    checkout = Path(args.checkout).resolve(strict=True)
+    proposal = Path(args.proposal).resolve(strict=False)
+    outside_checkout(checkout, proposal)
+    if not proposal.is_file():
+        raise AgentError("Proposal not found; start with 'gh-engineer guide'")
+    record = load_json(proposal)
+    if record.get("schema") != 2:
+        raise AgentError("Unsupported proposal schema")
+
+    receipt_path = Path(str(proposal) + ".applied.json")
+    print("NEXT SAFE STEP (read-only)")
+    if not receipt_path.exists():
+        validated_record(checkout, proposal, require_base=True)
+        print("Stage: PROPOSED (no local apply receipt)")
+        print("1. Review: gh-engineer review --proposal PATH")
+        print("2. Use the printed exact SHA-256 with 'apply --expected-sha256 ... --approve'.")
+        return
+
+    receipt = load_json(receipt_path)
+    if (receipt.get("schema") != 2
+            or receipt.get("proposal_sha256") != sha(proposal.read_bytes())
+            or any(receipt.get(k) != record.get(k)
+                   for k in ("repo", "issue", "base", "base_sha", "issue_updated_at"))):
+        raise AgentError("Proposal and local apply receipt are inconsistent; stop and inspect")
+    current = assert_checkout(checkout, record["repo"], record["base"], require_base=False)
+    if (receipt.get("commit") != current
+            or run_git(checkout, "branch", "--show-current") != receipt.get("branch")):
+        raise AgentError("Local checkout no longer matches the recorded commit/branch")
+    print("Stage: LOCAL COMMIT RECORDED")
+    if verification_path(proposal).exists():
+        check_gate(proposal, receipt, override=False, reason=None)
+        print("Verification: PASS (local report, not target CI)")
+        print("Next: inspect remote state with 'status --proposal PATH --remote'.")
+        print("Only then consider 'publish --proposal PATH --approve-publish'.")
+    else:
+        print("Verification: NOT RUN")
+        print("Next: 'verify --help' for the trusted Docker test options.")
+        print("An explicit, justified no-test exception is available only if NO report exists.")
+    print("All next steps require their own explicit flags; none ran here.")
+
+
 def make_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="gh-engineer", description="Bounded, opt-in issue-to-PR engineering agent")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(
+        prog="gh-engineer",
+        description="Safe GitHub issue-to-PR workflow with clear, explicit approvals.",
+        epilog="Start: gh-engineer guide | Check: gh-engineer doctor | Next: gh-engineer next --proposal PATH",
+    )
+    parser.set_defaults(func=overview)
+    sub = parser.add_subparsers(dest="command")
+    p = sub.add_parser("guide", help="Show the recommended five-step workflow with examples")
+    p.set_defaults(func=guide)
+    p = sub.add_parser("doctor", help="Check Python, Git and checkout without network or mutations")
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
+    p.add_argument("--repo", help="Optional OWNER/REPO; checks exact fetch/push origin")
+    p.set_defaults(func=doctor)
+    p = sub.add_parser("next", help="Suggest the next safe step from local proposal state")
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
+    p.add_argument("--proposal", required=True, help="Existing proposal JSON outside checkout")
+    p.set_defaults(func=next_step)
     p = sub.add_parser("plan", help="Read GitHub issue, ask model once, write proposal only")
     p.add_argument("--repo", required=True, help="owner/name, must match checkout origin")
     p.add_argument("--issue", required=True, type=int)
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--model", required=True, help="OpenAI model compatible with Responses Structured Outputs")
     p.add_argument("--allow-source-upload", action="store_true", help="Authorize sending selected repository files and issue data to model provider")
     p.add_argument("--allowed-file", action="append", required=True, help="Explicit existing or new repository path; repeat for scoped edits (max 12)")
     p.add_argument("--output", required=True, help="JSON output outside checkout")
     p.set_defaults(func=plan)
     p = sub.add_parser("review", help="Validate proposal against clean base and show full diff without mutating")
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--proposal", required=True)
     p.set_defaults(func=review)
     p = sub.add_parser("apply", help="Apply reviewed proposal to new local branch and commit")
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--proposal", required=True)
     p.add_argument("--approve", action="store_true", help="Explicitly authorize local edits and commit")
     p.add_argument("--expected-sha256", required=True, help="Exact proposal SHA256 printed by review")
     p.set_defaults(func=apply)
     p = sub.add_parser("verify", help="Run explicitly configured tests in a constrained Docker container")
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--proposal", required=True)
     p.add_argument("--image", required=True, help="Preloaded trusted Docker image pinned by sha256")
     p.add_argument("--command-json", required=True, help='JSON array, e.g. ["python","-m","unittest"]')
     p.add_argument("--timeout", type=int, default=120)
     p.set_defaults(func=verify)
     p = sub.add_parser("status", help="Read-only local/optional remote recovery state")
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--proposal", required=True)
     p.add_argument("--remote", action="store_true")
     p.set_defaults(func=status)
     p = sub.add_parser("publish", help="Push exact verified commit and create PR")
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--proposal", required=True)
     p.add_argument("--approve-publish", action="store_true", help="Explicitly authorize remote branch push and PR")
     p.add_argument("--ready-for-review", action="store_true", help="Create a review-ready PR instead of a draft")
@@ -423,7 +557,7 @@ def make_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run", help="Opt-in autonomous issue-to-PR flow (no merge or deploy)")
     p.add_argument("--repo", required=True)
     p.add_argument("--issue", required=True, type=int)
-    p.add_argument("--checkout", required=True)
+    p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--model", required=True)
     p.add_argument("--output", required=True, help="Proposal JSON outside checkout")
     p.add_argument("--allow-source-upload", action="store_true")
