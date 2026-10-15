@@ -392,9 +392,9 @@ COMMANDS = (
     ("status", "Inspect recovery state; --remote is opt-in", "inspect", "local/remote"),
     ("plan", "Upload explicitly allowed inputs and create a proposal", "work", "model/write"),
     ("review", "Inspect a complete proposal diff and SHA-256", "work", "local"),
-    ("apply", "Commit the exactly reviewed proposal with approval", "work", "local/write"),
+    ("apply", "Commit an approved proposal with --approve", "work", "local/write"),
     ("verify", "Test an exact commit with an operator-selected Docker image", "work", "local/exec"),
-    ("publish", "Publish an open PR with separate explicit authorization", "work", "remote/write"),
+    ("publish", "Publish an open PR using --approve-publish", "work", "remote/write"),
     ("run", "Advanced up-front authorized proposal-to-PR pipeline", "advanced", "model/write"),
 )
 
@@ -435,6 +435,12 @@ def workflow_snapshot(checkout: Path, proposal: Path) -> dict:
             or type(record.get("issue")) is not int or record["issue"] < 1):
         raise AgentError("Invalid proposal schema or issue")
     repo = require_repo(record.get("repo"))
+    if (not isinstance(record.get("base"), str)
+            or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._/-]*", record["base"])
+            or ".." in record["base"] or "//" in record["base"]
+            or not isinstance(record.get("base_sha"), str)
+            or not re.fullmatch(r"[a-f0-9]{40}", record["base_sha"])):
+        raise AgentError("Invalid proposal base identity")
     receipt_path = Path(str(proposal) + ".applied.json")
     if not receipt_path.exists():
         validated_record(checkout, proposal, require_base=True)
