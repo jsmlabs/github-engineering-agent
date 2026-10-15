@@ -59,7 +59,8 @@ class GitHub:
 
     def metadata(self) -> dict:
         x = json_request(f"https://api.github.com/repos/{self.repo}", token=self.token, github=True)
-        if not isinstance(x, dict) or x.get("full_name", "").lower() != self.repo.lower() or x.get("archived"):
+        if (not isinstance(x, dict) or not isinstance(x.get("full_name"), str)
+                or x["full_name"].lower() != self.repo.lower() or x.get("archived")):
             raise AgentError("Repository identity mismatch or archived repository")
         branch = x.get("default_branch")
         if not isinstance(branch, str) or not branch or branch.startswith("-"):

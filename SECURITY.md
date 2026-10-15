@@ -36,6 +36,8 @@ Nothing in GitHub issue text, repository files or model output may expand these 
 5. Independently test and review proposed changes before publication where practical. Before merge, enforce required branch protections, CI, maintainers' reviews, code scanning and deployment policy **outside this tool**.
 6. Audit the trusted Git executable, global/local configuration, credential helpers and filters. This tool does not sandbox those dependencies. Git hooks are disabled for invoked Git commands where supported, but that does not neutralize all execution or supply-chain risks.
 
+Repository metadata is treated as untrusted API data. Missing or malformed repository identity fields fail closed before planning or publication, rather than producing an uncaught type error.
+
 ## Explicitly unsupported
 
 The program does **not** support automatic merge, deployment, PR review approval, workflow modifications, broad filesystem edits, new files, deletion, arbitrary shell execution suggested by the model, automatic selection of target-project tests, cryptographic attestation, full secret detection or generalized recovery from all ambiguous failures. The operator may explicitly configure isolated test execution through `verify`.
