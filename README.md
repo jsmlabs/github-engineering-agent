@@ -194,7 +194,7 @@ For supported options, run `python -m gh_agent <command> --help`.
 | **Files** | 1–5 distinct, explicitly approved, existing tracked UTF-8 files; protected paths/symlinks rejected |
 | **Budgets** | 20,000 bytes per file; 55,000 total; 400 changed lines; 85,000-byte proposal diff |
 | **Inputs** | One open issue, bounded body (6,000 characters), required revision timestamp; up to 1,000 eligible tracked candidate files |
-| **Validation** | Original SHA-256, allowed paths, Python/JSON syntax, strict JSON parsing, source-secret heuristics, Git staged/committed blob checks |
+| **Validation** | Original SHA-256, allowed paths, Python/JSON syntax, strict JSON parsing (duplicate keys, overflowed numbers and malformed Unicode), source-secret heuristics, Git staged/committed blob checks |
 | **Model** | No execution of model-proposed commands; refuse unexpected/refused/incomplete structured responses |
 | **Remote** | Exact repo/ref identity, stale-state rechecks, collision refusal, open draft PR only |
 | **Verification** | Commit-bound record; explicit no-test exception only when there is no test report |

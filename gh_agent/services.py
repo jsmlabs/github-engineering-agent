@@ -29,7 +29,7 @@ def json_request(url: str, *, token: str, payload: dict | None = None, github: b
     if payload is not None:
         try:
             data = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
-        except (TypeError, ValueError, RecursionError) as exc:
+        except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
             raise AgentError("Invalid API request JSON") from exc
         if len(data) > 180_000:
             raise AgentError("Request exceeds size budget")
@@ -142,7 +142,8 @@ class Model:
     def ask(self, instructions: str, context: dict, schema: dict, name: str) -> dict:
         try:
             context_json = json.dumps(context, ensure_ascii=False, allow_nan=False)
-        except (TypeError, ValueError, RecursionError) as exc:
+            context_json.encode("utf-8")
+        except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
             raise AgentError("Invalid model context JSON") from exc
         request = {
             "model": self.model,

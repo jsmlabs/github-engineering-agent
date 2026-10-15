@@ -105,7 +105,7 @@ The report records exit code, image, argv and bounded output excerpts. It is **n
 | Diff | Max 400 changed lines, 85,000 bytes in proposal review diff |
 | Issue | Open issue (not PR), bounded title and 6,000-character body, required revision timestamp |
 | Git/HTTP | Exact SHA/branch checks and Git remote identity; allowlisted HTTPS endpoints with size/time limits |
-| JSON | Strict duplicate-key/non-finite rejection for local state, model content and API responses |
+| JSON | Strict duplicate-key, non-finite/overflow-number and invalid-Unicode rejection across local state, model content and API responses; local state reads capped at 256,000 bytes |
 
 JSON source parsing and Python AST validation are **syntax checks** only. There is no built-in validator for the other allowed source formats, no automatic target-test selection, no transactional push/PR operation, and no generalized resumable job store.
 
