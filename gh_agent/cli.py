@@ -243,12 +243,13 @@ def status(args) -> None:
             gh = GitHub(os.environ.get("GITHUB_TOKEN", ""), receipt["repo"])
             existing = gh.existing_pr(receipt["branch"], receipt["base"])
             if existing:
-                exact = (existing.get("state") == "open" and existing.get("draft") is True
+                exact = (existing.get("state") == "open"
+                         and isinstance(existing.get("draft"), bool)
                          and isinstance(existing.get("head"), dict)
                          and existing["head"].get("sha") == head)
-                print("DRAFT_PR", "EXACT_OPEN" if exact else "CONFLICT")
+                print("OPEN_PR", ("EXACT_DRAFT" if existing["draft"] else "EXACT_READY") if exact else "CONFLICT")
             else:
-                print("DRAFT_PR ABSENT")
+                print("OPEN_PR ABSENT")
 
 
 def publish(args) -> None:

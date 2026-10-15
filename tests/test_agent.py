@@ -167,10 +167,12 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(git(self.checkout, "status", "--porcelain"), "")
 
     def test_path_escape_and_protected(self):
-        for p in ["../foo.py", ".env", ".github/workflows/ci.yml", "node_modules/a.js", "src/../../a.py", "/tmp/a.py", "src/.hidden/a.py", "credentials/a.py", "app.exe", "Dockerfile"]:
+        for p in ["../foo.py", ".env", ".github/secrets.yml", ".github/workflows/.hidden.yml", "node_modules/a.js", "src/../../a.py", "/tmp/a.py", "src/.hidden/a.py", "credentials/a.py", "app.exe"]:
             with self.subTest(p=p), self.assertRaises(AgentError):
                 check_path(p)
         self.assertEqual(check_path("src/app.py"), "src/app.py")
+        for path in (".github/workflows/ci.yml", "Dockerfile", "Makefile", ".gitignore", "package-lock.json"):
+            self.assertEqual(check_path(path), path)
         (self.checkout / "src").mkdir()
         (self.checkout / "src" / "bad.py").symlink_to(self.checkout / "app.py")
         with self.assertRaises(AgentError):
@@ -239,6 +241,67 @@ class AgentTest(unittest.TestCase):
         with self.assertRaises(AgentError):
             cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), approve=False, expected_sha256=sha(self.planfile.read_bytes())))
         self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
+
+    def test_scoped_new_file_creates_directory_and_exact_commit(self):
+        path = "src/new_module/feature.py"
+        record = self.proposal()
+        record["authorized_files"] = [path]
+        record["edits"] = [{"path": path, "base_sha256": sha(b""), "content": "VALUE = 42\n"}]
+        private_json_write(self.planfile, record)
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        self.assertEqual((self.checkout / path).read_text(), "VALUE = 42\n")
+        self.assertEqual(git(self.checkout, "status", "--porcelain"), "")
+        from gh_agent.core import committed_blob
+        self.assertEqual(committed_blob(self.checkout, git(self.checkout, "rev-parse", "HEAD"), path), b"VALUE = 42\n")
+
+    def test_new_paths_reject_untracked_file_and_symlink(self):
+        untracked = self.checkout / "new.py"
+        untracked.write_text("preserve\n")
+        with self.assertRaisesRegex(AgentError, "untracked"):
+            authorized_files(self.checkout, ["new.py"], {"app.py"})
+        untracked.unlink()
+        (self.checkout / "alias").symlink_to(self.checkout)
+        with self.assertRaisesRegex(AgentError, "Symlink"):
+            authorized_files(self.checkout, ["alias/new.py"], {"app.py"})
+        self.assertEqual(read_selected(self.checkout, ["src/new_module/feature.py"]),
+                         {"src/new_module/feature.py": ""})
+
+    def test_extended_file_budget_remains_bounded(self):
+        from gh_agent.core import MAX_FILES
+        self.assertGreater(MAX_FILES, 5)
+        paths = [f"src/new_{i}.py" for i in range(MAX_FILES)]
+        validate_selection(self.checkout, paths, {"app.py"}, set(paths))
+        with self.assertRaisesRegex(AgentError, "distinct paths"):
+            validate_selection(self.checkout, paths + ["src/extra.py"], {"app.py"})
+
+    @unittest.skipUnless(os.name == "posix", "Docker verification is POSIX-only")
+    def test_isolated_workspace_is_writable_disposable_copy(self):
+        image = "trusted/image@sha256:" + "a" * 64
+        captured = {}
+        def fake_run(argv, **kwargs):
+            mount = next(argv[i+1] for i, value in enumerate(argv) if value == "--mount")
+            self.assertNotIn(",readonly", mount)
+            workspace = Path(mount.split("source=", 1)[1].split(",target=", 1)[0])
+            self.assertNotEqual(workspace, self.checkout)
+            (workspace / "app.py").write_text("test modified\n")
+            (workspace / "build.txt").write_text("generated\n")
+            captured["workspace"] = workspace
+            return subprocess.CompletedProcess(argv, 0)
+        with patch("gh_agent.verification.subprocess.run", side_effect=fake_run):
+            result = run_isolated(self.checkout, image, ["python", "-V"], 15)
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual((self.checkout / "app.py").read_text(), "x = 1\n")
+        self.assertFalse((self.checkout / "build.txt").exists())
+        self.assertFalse(captured["workspace"].exists())
+
+    def test_ready_pr_parser_is_explicit(self):
+        args = cli.make_parser().parse_args(["publish", "--checkout", str(self.checkout),
+            "--proposal", str(self.planfile), "--approve-publish", "--ready-for-review"])
+        self.assertTrue(args.ready_for_review)
+        default = cli.make_parser().parse_args(["publish", "--checkout", str(self.checkout),
+            "--proposal", str(self.planfile), "--approve-publish"])
+        self.assertFalse(default.ready_for_review)
 
     def test_local_apply_actual_commit_and_receipt(self):
         private_json_write(self.planfile, self.proposal())
@@ -332,8 +395,6 @@ class AgentTest(unittest.TestCase):
                 pass
             def ask(self, *args):
                 MockModel.count += 1
-                if MockModel.count == 1:
-                    return {"rationale": "edit app", "paths": ["app.py"]}
                 return {"summary": "change", "edits": [{"path": "app.py", "base_sha256": sha(b"x = 1\n"), "content": "x = 2\n"}]}
         with patch.object(cli, "GitHub", MockGH), patch.object(cli, "Model", MockModel):
             cli.plan(argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile), repo="example/safe-repo", issue=7, model="stub", allow_source_upload=True, allowed_file=["app.py"]))
@@ -738,7 +799,8 @@ class AgentTest(unittest.TestCase):
             def issue(self, i): return {"number": i, "title": "Change", "body": "", "updated_at": "stamp"}
         class OutOfScopeModel:
             def __init__(self, *args): pass
-            def ask(self, *args): return {"rationale": "change other path", "paths": ["other.py"]}
+            def ask(self, *args): return {"summary": "wrong scope", "edits": [
+                {"path": "other.py", "base_sha256": sha(b""), "content": "x = 3\n"}]}
         with patch.object(cli, "GitHub", MockGH), patch.object(cli, "Model", OutOfScopeModel):
             with self.assertRaises(AgentError):
                 cli.plan(argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile),
@@ -781,7 +843,6 @@ class AgentTest(unittest.TestCase):
             def __init__(self, *args): pass
             def ask(self, *args):
                 MockModel.calls += 1
-                if MockModel.calls == 1: return {"rationale": "app", "paths": ["app.py"]}
                 return {"summary": "fix", "edits": [{"path": "app.py", "base_sha256": sha(b"x = 1\n"), "content": "x = 2\n"}]}
         args = argparse.Namespace(checkout=str(self.checkout), output=str(self.planfile),
             repo="example/safe-repo", issue=7, model="stub", allowed_file=["app.py"],
@@ -816,7 +877,6 @@ class AgentTest(unittest.TestCase):
             def __init__(self, *args): pass
             def ask(self, *args):
                 MockModel.calls += 1
-                if MockModel.calls == 1: return {"rationale": "app", "paths": ["app.py"]}
                 return {"summary": "private", "edits": [{"path": "app.py", "base_sha256": sha(b"x = 1\n"), "content": "x = 8888\n"}]}
         output = StringIO()
         with patch.object(cli, "GitHub", MockGH), patch.object(cli, "Model", MockModel), redirect_stdout(output):
