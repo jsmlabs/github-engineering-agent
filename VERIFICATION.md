@@ -49,7 +49,7 @@ python -m gh_agent --help
 
 `scripts/verify.py` runs: (1) `python -m compileall -q gh_agent tests`, (2) verbose unittest discovery, then (3) `python -m gh_agent --help`. It exits nonzero on a failed command.
 
-The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The configured GitHub Actions workflow runs these checks on **six** OS/Python combinations, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout.
+The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The proposed GitHub Actions workflow is configured for **seven** jobs: the original six OS/Python combinations plus Ubuntu/Python 3.12, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout. The additional job is not counted as verified until its exact-commit run succeeds.
 
 ### Evidence classification
 
