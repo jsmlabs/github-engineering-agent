@@ -154,7 +154,7 @@ python -m gh_agent publish \
 <summary><strong>Advanced: `run` without proposal-specific human review</strong></summary>
 
 > [!WARNING]
-> `run` may commit and publish **unreviewed AI-generated changes** as a pull request. Use it only with explicit source, local and remote authorizations, a constrained checkout and independent downstream review. It cannot merge or deploy.
+> `run` may commit and publish **unreviewed AI-generated changes** as a pull request. Use it only with explicit source, local and remote authorizations, a constrained checkout and independent downstream review. It cannot merge or deploy. **GitHub Actions workflow edits are not supported in `run`; use `plan → review → apply` with exact-digest approval instead.**
 
 ~~~bash
 python -m gh_agent run \
