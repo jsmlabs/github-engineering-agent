@@ -22,7 +22,7 @@
 
 | Operation | Required authorization | Maximum intended effect |
 | --- | --- | --- |
-| `menu`, `guide`, `doctor`, `next` | No permission grants | Local interactive navigation, instructions or read-only state checks; never model or remote writes |
+| `menu`, `commands`, `dashboard`, `guide`, `doctor`, `next` | No permission grants | Local navigation, command discovery or validated local state checks; never model or remote writes |
 | `plan` | `--allow-source-upload` and 1–12 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
 | `review` | None | Print full proposed diff/digest, **no modification** |
 | `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
@@ -30,6 +30,8 @@
 | `status` | None | Inspect local state; `--remote` adds read-only remote lookups |
 | `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open PR (draft by default)** |
 | `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
+
+The `dashboard` checks the recorded proposal, local commit and committed file bytes before showing a progress state. It labels known failed/invalid test reports as `BLOCKED` and never infers remote publication or target CI from local files. Its JSON output is a local evidence snapshot, not an authorization token; callers must independently check the stage and cannot use it to bypass `publish`.
 
 The terminal assumes the current working directory as the checkout unless `--checkout` is supplied. The explicit `menu` command requires a TTY, has a bounded input loop and never invokes `plan`, `apply`, `publish` or `run`; it calls local-only `guide`, `doctor`, `next` or `status` without remote lookup. ANSI styling is disabled when redirected, when `NO_COLOR` is set or with `--no-color`. Avoid treating terminal output or local receipt files as trusted evidence of live provider behavior. `doctor` inspects local Git and reports credential presence only; `next` never executes its suggestions and refuses mismatched state. Neither command attests to the security of the local host, credentials or dependencies.
 

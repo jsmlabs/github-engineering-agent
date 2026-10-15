@@ -99,7 +99,7 @@ class AgentTest(unittest.TestCase):
         output = terminal_out.getvalue()
         for expected in ("Unknown option", "SAFE FIVE-STEP WORKFLOW",
                          "Local preflight passed", "Stage: PROPOSED",
-                         "NO_APPLY_RECEIPT", "GET STARTED", "Menu closed"):
+                         "NO_APPLY_RECEIPT", "COMMAND REFERENCE", "Menu closed"):
             self.assertIn(expected, output)
         self.assertNotIn("\x1b[", output)
         self.assertEqual(self.planfile.read_bytes(), before)
@@ -131,6 +131,111 @@ class AgentTest(unittest.TestCase):
               patch.object(cli.sys, "stdout", FakeTTY()) as out):
             self.assertEqual(cli.main(["menu"]), 0)
         self.assertIn("session limit reached", out.getvalue())
+
+    def test_commands_reference_filter_json_and_read_only(self):
+        with (redirect_stdout(StringIO()) as out, patch.object(cli, "GitHub") as gh,
+              patch.object(cli, "Model") as model, patch.object(cli, "run_git") as git_op):
+            self.assertEqual(cli.main(["commands", "--group", "inspect", "--json"]), 0)
+            gh.assert_not_called()
+            model.assert_not_called()
+            git_op.assert_not_called()
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["schema"], 1)
+        names = [item["name"] for item in payload["commands"]]
+        self.assertEqual(names, ["dashboard", "next", "status"])
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(cli.main(["commands", "--search", "approve"]), 0)
+        self.assertIn("apply", out.getvalue())
+        self.assertIn("publish", out.getvalue())
+        with self.assertRaisesRegex(AgentError, "80 characters"):
+            cli.commands(argparse.Namespace(group="all", search="x" * 81, json=False))
+
+    def test_dashboard_proposed_and_applied_stages_are_read_only(self):
+        private_json_write(self.planfile, self.proposal())
+        before = self.planfile.read_bytes()
+        args = ["dashboard", "--checkout", str(self.checkout),
+                "--proposal", str(self.planfile), "--json"]
+        with (redirect_stdout(StringIO()) as out,
+              patch.object(cli, "GitHub") as gh,
+              patch.object(cli, "Model") as model):
+            self.assertEqual(cli.main(args), 0)
+            gh.assert_not_called()
+            model.assert_not_called()
+        parsed = json.loads(out.getvalue())
+        self.assertEqual(parsed["stage"], "PROPOSED")
+        self.assertEqual(parsed["verification"], "NOT_RUN")
+        self.assertFalse(parsed["publication_confirmed"])
+        self.assertEqual(self.planfile.read_bytes(), before)
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(cli.main(args), 0)
+        parsed = json.loads(out.getvalue())
+        self.assertEqual(parsed["stage"], "APPLIED")
+        self.assertTrue(parsed["local_commit"])
+        self.assertEqual(parsed["next"], "verify")
+
+    def test_dashboard_verification_and_known_failure(self):
+        private_json_write(self.planfile, self.proposal())
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        receipt = json.loads(Path(str(self.planfile) + ".applied.json").read_text())
+        report = {"schema": 1, "proposal_sha256": receipt["proposal_sha256"],
+                  "commit": receipt["commit"], "branch": receipt["branch"],
+                  "exit_code": 0, "outcome": "PASS"}
+        report_path = verification_path(self.planfile)
+        private_json_write(report_path, report)
+        args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), json=False)
+        with redirect_stdout(StringIO()) as out:
+            cli.dashboard(args)
+        self.assertIn("Stage: VERIFIED_LOCAL", out.getvalue())
+        self.assertIn("Remote PR: NOT CHECKED", out.getvalue())
+        report["outcome"] = "FAIL"
+        report["exit_code"] = 1
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+        with redirect_stdout(StringIO()) as out:
+            cli.dashboard(args)
+        self.assertIn("Publication BLOCKED", out.getvalue())
+        self.assertNotIn("VERIFIED_LOCAL", out.getvalue())
+        args.json = True
+        with redirect_stdout(StringIO()) as out:
+            cli.dashboard(args)
+        blocked = json.loads(out.getvalue())
+        self.assertEqual(blocked["stage"], "BLOCKED")
+        self.assertFalse(blocked["publication_confirmed"])
+
+    def test_dashboard_rejects_tampering_and_dirty_checkout(self):
+        private_json_write(self.planfile, self.proposal())
+        cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
+                                     approve=True, expected_sha256=sha(self.planfile.read_bytes())))
+        args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile), json=False)
+        (self.checkout / "rogue.txt").write_text("changed", encoding="utf-8")
+        with self.assertRaisesRegex(AgentError, "Checkout must be completely clean"):
+            cli.dashboard(args)
+        (self.checkout / "rogue.txt").unlink()
+        receipt_path = Path(str(self.planfile) + ".applied.json")
+        receipt = json.loads(receipt_path.read_text())
+        receipt["proposal_sha256"] = "a" * 64
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        with self.assertRaisesRegex(AgentError, "receipt mismatch"):
+            cli.dashboard(args)
+
+    def test_menu_dashboard_and_command_catalog_navigation(self):
+        class FakeTTY(StringIO):
+            def isatty(self):
+                return True
+        private_json_write(self.planfile, self.proposal())
+        inp = FakeTTY("6\n" + str(self.planfile) + "\n5\n0\n")
+        out = FakeTTY()
+        with (patch.object(cli.sys, "stdin", inp), patch.object(cli.sys, "stdout", out),
+              patch.object(cli, "Model") as model, patch.object(cli, "GitHub") as gh):
+            self.assertEqual(cli.main(["menu", "--checkout", str(self.checkout),
+                                       "--no-color"]), 0)
+            model.assert_not_called()
+            gh.assert_not_called()
+        self.assertIn("PROPOSAL DASHBOARD", out.getvalue())
+        self.assertIn("COMMAND REFERENCE", out.getvalue())
+        self.assertIn("Menu closed", out.getvalue())
 
     def test_cli_checkout_defaults_and_explicit_approvals(self):
         for argv in (

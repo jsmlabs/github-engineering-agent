@@ -13,6 +13,9 @@ COMMANDS = [
     [sys.executable, "-m", "gh_agent"],
     [sys.executable, "-m", "gh_agent", "guide"],
     [sys.executable, "-m", "gh_agent", "menu", "--help"],
+    [sys.executable, "-m", "gh_agent", "commands", "--json"],
+    [sys.executable, "-m", "gh_agent", "commands", "--group", "inspect"],
+    [sys.executable, "-m", "gh_agent", "dashboard", "--help"],
     [sys.executable, "-m", "gh_agent", "doctor", "--help"],
     [sys.executable, "-m", "gh_agent", "next", "--help"],
 ]

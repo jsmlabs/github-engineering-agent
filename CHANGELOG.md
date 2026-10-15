@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Command discovery and local workflow dashboard
+
+- Add a searchable command catalog with task categories, explicit side-effect labels and optional JSON output for terminal or scripts.
+- Add a read-only proposal dashboard for validated PROPOSED, APPLIED, VERIFIED_LOCAL and BLOCKED stages, including saved SHA, checkout, changed-file and committed-blob integrity checks. A local PASS never implies remote PR publication or CI success.
+- Expand the interactive menu with direct catalog and dashboard navigation. Extend negative-path tests and offline CLI smoke commands without new dependencies or permission changes.
+
 ### Terminal menu and accessible interaction
 
 - Add explicit `gh-engineer menu` with numbered local-only navigation, reusable proposal path within the session, TTY detection, bounded input loops and safe EOF/interrupt handling.

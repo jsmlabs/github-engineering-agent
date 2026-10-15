@@ -381,6 +381,149 @@ def run_auto(args) -> None:
 
 
 
+
+COMMANDS = (
+    ("menu", "Explore read-only terminal navigation", "start", "local"),
+    ("guide", "See the reviewed five-step workflow", "start", "local"),
+    ("doctor", "Check workstation and Git checkout locally", "start", "local"),
+    ("commands", "Browse and search all supported commands", "start", "local"),
+    ("dashboard", "Inspect proposal progress and verification locally", "inspect", "local"),
+    ("next", "Find the next safe step from proposal state", "inspect", "local"),
+    ("status", "Inspect recovery state; --remote is opt-in", "inspect", "local/remote"),
+    ("plan", "Upload explicitly allowed inputs and create a proposal", "work", "model/write"),
+    ("review", "Inspect a complete proposal diff and SHA-256", "work", "local"),
+    ("apply", "Commit an approved proposal with --approve", "work", "local/write"),
+    ("verify", "Test an exact commit with an operator-selected Docker image", "work", "local/exec"),
+    ("publish", "Publish an open PR using --approve-publish", "work", "remote/write"),
+    ("run", "Advanced up-front authorized proposal-to-PR pipeline", "advanced", "model/write"),
+)
+
+
+def commands(args) -> None:
+    """Discoverable, deterministic and side-effect-free command reference."""
+    group = getattr(args, "group", "all")
+    query = getattr(args, "search", "") or ""
+    if len(query) > 80:
+        raise AgentError("Command search is limited to 80 characters")
+    selected = [
+        {"name": name, "description": description, "group": kind, "effect": effect}
+        for name, description, kind, effect in COMMANDS
+        if (group == "all" or group == kind)
+        and query.casefold() in (name + " " + description + " " + effect).casefold()
+    ]
+    if getattr(args, "json", False):
+        print(json.dumps({"schema": 1, "commands": selected}, ensure_ascii=True))
+        return
+    print("COMMAND REFERENCE (permissions shown; no command executed)")
+    print("  {0:<13} {1:<14} {2}".format("COMMAND", "EFFECT", "DESCRIPTION"))
+    for entry in selected:
+        print("  {name:<13} {effect:<14} {description}".format(**entry))
+    if not selected:
+        print("  No matching commands. Try 'gh-engineer commands --group all'.")
+    print("Use 'gh-engineer COMMAND --help' for exact options and approvals.")
+
+
+def workflow_snapshot(checkout: Path, proposal: Path) -> dict:
+    """Validate local evidence without network calls, writes or publication claims."""
+    checkout = checkout.resolve(strict=True)
+    proposal = proposal.resolve(strict=False)
+    outside_checkout(checkout, proposal)
+    if not proposal.is_file():
+        raise AgentError("Proposal not found; use 'gh-engineer guide' first")
+    record = load_json(proposal)
+    if (type(record.get("schema")) is not int or record["schema"] != 2
+            or type(record.get("issue")) is not int or record["issue"] < 1):
+        raise AgentError("Invalid proposal schema or issue")
+    repo = require_repo(record.get("repo"))
+    if (not isinstance(record.get("base"), str)
+            or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._/-]*", record["base"])
+            or ".." in record["base"] or "//" in record["base"]
+            or not isinstance(record.get("base_sha"), str)
+            or not re.fullmatch(r"[a-f0-9]{40}", record["base_sha"])):
+        raise AgentError("Invalid proposal base identity")
+    receipt_path = Path(str(proposal) + ".applied.json")
+    if not receipt_path.exists():
+        validated_record(checkout, proposal, require_base=True)
+        return {"schema": 1, "stage": "PROPOSED", "repository": repo,
+                "issue": record["issue"], "local_commit": False,
+                "verification": "NOT_RUN", "remote": "NOT_CHECKED",
+                "next": "review", "publication_confirmed": False}
+
+    receipt = load_json(receipt_path)
+    if (type(receipt.get("schema")) is not int or receipt["schema"] != 2
+            or receipt.get("proposal_sha256") != sha(proposal.read_bytes())
+            or any(receipt.get(k) != record.get(k)
+                   for k in ("repo", "issue", "base", "base_sha", "issue_updated_at"))):
+        raise AgentError("Proposal and receipt mismatch; stop and reconcile")
+    commit, branch = receipt.get("commit"), receipt.get("branch")
+    if (not isinstance(commit, str) or not re.fullmatch(r"[a-f0-9]{40}", commit)
+            or not isinstance(branch, str)
+            or not re.fullmatch(r"agent/issue-[1-9][0-9]*-[a-f0-9]{10}", branch)):
+        raise AgentError("Invalid local commit or branch receipt")
+    current = assert_checkout(checkout, repo, record["base"], require_base=False)
+    if current != commit or run_git(checkout, "branch", "--show-current") != branch:
+        raise AgentError("Checkout differs from the recorded commit or branch")
+    if run_git(checkout, "status", "--porcelain", "--untracked-files=all"):
+        raise AgentError("Checkout has unexpected changes; inspect locally")
+    if run_git(checkout, "rev-parse", f"{commit}^") != record.get("base_sha"):
+        raise AgentError("Recorded commit parent differs from the proposal")
+    edits = record.get("edits")
+    if (not isinstance(edits, list) or not edits
+            or not all(isinstance(e, dict)
+                       and set(e) == {"path", "base_sha256", "content"}
+                       and isinstance(e["path"], str)
+                       and isinstance(e["content"], str)
+                       for e in edits)):
+        raise AgentError("Invalid saved proposal edits")
+    expected = [e["path"] for e in edits]
+    if (len(set(expected)) != len(expected)
+            or receipt.get("files") != sorted(expected)
+            or set(run_git(checkout, "diff", "--name-only",
+                           record["base_sha"], commit).splitlines()) != set(expected)):
+        raise AgentError("Committed files differ from the recorded scope")
+    for item in edits:
+        committed = committed_blob(checkout, commit, item["path"])
+        if committed != item["content"].encode("utf-8"):
+            raise AgentError("Committed file differs from the approved proposal")
+
+    if not verification_path(proposal).exists():
+        stage, verification, next_action = "APPLIED", "NOT_RUN", "verify"
+    else:
+        try:
+            check_gate(proposal, receipt, override=False, reason=None)
+        except AgentError:
+            stage, verification, next_action = "BLOCKED", "BLOCKED", "reconcile"
+        else:
+            stage, verification, next_action = "VERIFIED_LOCAL", "PASS", "status"
+    return {"schema": 1, "stage": stage, "repository": repo,
+            "issue": record["issue"], "local_commit": True,
+            "verification": verification, "remote": "NOT_CHECKED",
+            "next": next_action, "publication_confirmed": False}
+
+
+def dashboard(args) -> None:
+    """Read-only dashboard. A displayed PASS is local, never publication proof."""
+    snapshot = workflow_snapshot(Path(args.checkout), Path(args.proposal))
+    if getattr(args, "json", False):
+        print(json.dumps(snapshot, ensure_ascii=True))
+        return
+    print("PROPOSAL DASHBOARD (local evidence only)")
+    print(f"Repository: {snapshot['repository']}  |  Issue: #{snapshot['issue']}")
+    print(f"Stage: {snapshot['stage']}")
+    print("  [x] Proposal validated")
+    print("  [{0}] Local commit verified".format("x" if snapshot["local_commit"] else " "))
+    flag = "x" if snapshot["verification"] == "PASS" else "!"
+    if snapshot["verification"] == "NOT_RUN":
+        flag = " "
+    print(f"  [{flag}] Test report: {snapshot['verification']}")
+    print("  [?] Remote PR: NOT CHECKED")
+    print(f"Next action: {snapshot['next']} (never executed here)")
+    if snapshot["stage"] == "BLOCKED":
+        print("Publication BLOCKED. Inspect report and reconcile; do not override a recorded failure.")
+    else:
+        print("Open PR and target CI are NOT verified by this dashboard.")
+
+
 def menu_style(text: str, color_code: str, *, no_color: bool = False) -> str:
     """ANSI styling only on capable interactive terminals; plain otherwise."""
     if (no_color or os.environ.get("NO_COLOR") is not None
@@ -407,25 +550,26 @@ def menu(args) -> None:
         print("  2  Doctor          Check local setup and checkout")
         print("  3  Next step       Inspect saved proposal")
         print("  4  Status          Inspect saved local receipt")
-        print("  5  Commands        Quick reference")
+        print("  5  Commands        Searchable command reference")
+        print("  6  Dashboard       Validated proposal progress")
         print("  0  Exit")
         try:
-            choice = input("Choose [0-5]: ").strip().lower()
+            choice = input("Choose [0-6]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nMenu closed. No action was started.")
             return
         if choice in {"0", "q", "quit", "exit"}:
             print("Menu closed. No action was started.")
             return
-        if choice not in {"1", "2", "3", "4", "5"}:
-            print("Unknown option. Enter a number from 0 to 5.")
+        if choice not in {"1", "2", "3", "4", "5", "6"}:
+            print("Unknown option. Enter a number from 0 to 6.")
             continue
         try:
             if choice == "1":
                 guide(args)
             elif choice == "2":
                 doctor(SimpleNamespace(checkout=checkout, repo=getattr(args, "repo", None)))
-            elif choice in {"3", "4"}:
+            elif choice in {"3", "4", "6"}:
                 hint = " (Enter to reuse previous path)" if last_proposal else ""
                 proposal = input("Proposal JSON path" + hint + ": ").strip()
                 if not proposal:
@@ -437,10 +581,12 @@ def menu(args) -> None:
                 local_args = SimpleNamespace(checkout=checkout, proposal=proposal, remote=False)
                 if choice == "3":
                     next_step(local_args)
-                else:
+                elif choice == "4":
                     status(local_args)
+                else:
+                    dashboard(local_args)
             else:
-                overview(args)
+                commands(SimpleNamespace(group="all", search="", json=False))
         except (AgentError, FileNotFoundError, PermissionError) as exc:
             print("CHECK STOPPED:", str(exc))
         except (EOFError, KeyboardInterrupt):
@@ -458,11 +604,13 @@ def overview(args=None) -> None:
     print("  gh-engineer menu                   Interactive, read-only local dashboard")
     print("  gh-engineer guide                  Five-step, copyable workflow")
     print("  gh-engineer doctor                 Check this workstation and checkout")
+    print("  gh-engineer commands               Browse tasks and permission levels")
     print("  gh-engineer plan --help            Start from an approved GitHub issue")
     print()
     print("YOUR WORKFLOW")
     print("  plan -> review -> apply -> verify -> publish")
     print("  next --proposal PATH               See the next safe step")
+    print("  dashboard --proposal PATH          View validated local progress")
     print("  status --proposal PATH             Inspect existing local state")
     print()
     print("Advanced: run (skips proposal-specific review; explicit approvals required).")
@@ -580,6 +728,17 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--repo", help="Optional repository identity for local doctor checks")
     p.add_argument("--no-color", action="store_true", help="Disable ANSI colors (also honors NO_COLOR)")
     p.set_defaults(func=menu)
+    p = sub.add_parser("commands", help="Searchable command reference with permission hints")
+    p.add_argument("--group", choices=("all", "start", "inspect", "work", "advanced"),
+                   default="all")
+    p.add_argument("--search", default="", help="Filter commands by name or description")
+    p.add_argument("--json", action="store_true", help="Emit deterministic JSON for scripts")
+    p.set_defaults(func=commands)
+    p = sub.add_parser("dashboard", help="Validate and display local proposal progress")
+    p.add_argument("--checkout", default=".", help="Target checkout root")
+    p.add_argument("--proposal", required=True, help="Existing proposal JSON outside checkout")
+    p.add_argument("--json", action="store_true", help="Emit local stage as JSON for scripts")
+    p.set_defaults(func=dashboard)
     p = sub.add_parser("guide", help="Show the recommended five-step workflow with examples")
     p.set_defaults(func=guide)
     p = sub.add_parser("doctor", help="Check Python, Git and checkout without network or mutations")

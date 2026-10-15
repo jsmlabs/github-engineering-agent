@@ -27,6 +27,7 @@ Install once from **this agent repository** using `python -m pip install .`. The
 ~~~text
 gh-engineer
 gh-engineer menu
+gh-engineer commands
 gh-engineer guide
 gh-engineer doctor --repo OWNER/REPO
 ~~~
@@ -35,12 +36,14 @@ gh-engineer doctor --repo OWNER/REPO
 | --- | --- | --- |
 | `gh-engineer` | Show the short home screen | None |
 | `gh-engineer menu` | Numbered terminal menu for local checks, workflow guidance and status | Only local, read-only inspection; never runs a model or publishes |
+| `gh-engineer commands --group inspect` | Browse/search commands with their side-effect labels; `--json` for scripts | None |
+| `gh-engineer dashboard --proposal ../issue-123.json` | Inspect validated local progress with blocked/stale-state detection; `--json` for scripts | Local read-only inspection; remote publication is never assumed |
 | `gh-engineer guide` | Show five review-first steps and copyable examples | None |
 | `gh-engineer doctor --repo OWNER/REPO` | Check Python, Git, clean checkout and exact origin; credentials are presence-only | Local inspection; no network |
 | `gh-engineer next --proposal ../issue-123.json` | Suggest a safe next step from exact local proposal/receipt/verification state | Read-only; does not run the step |
 | `gh-engineer status --proposal ../issue-123.json` | Examine the recorded local state | Read-only; `--remote` adds GitHub lookups |
 
-**Interactive menu:** run `gh-engineer menu` in a regular terminal, choose a number from 0–5, and optionally provide a proposal JSON path. Choices include Guide, Doctor, Next step, Local status and Commands. The menu remembers the previous path only until exit; `0` or `q` quits. Use `gh-engineer menu --no-color` or set `NO_COLOR` for plain text. If standard input/output is not a terminal (CI, piping or automation), use `gh-engineer guide` or the individual commands instead. No extra package or curses dependency is required.
+**Interactive menu:** run `gh-engineer menu` in a regular terminal, choose a number from 0–6, and optionally provide a proposal JSON path. Choices include Guide, Doctor, Next step, Local status, Commands and a validated Proposal Dashboard. The menu remembers the previous path only until exit; `0` or `q` quits. Use `gh-engineer menu --no-color` or set `NO_COLOR` for plain text. If standard input/output is not a terminal (CI, piping or automation), use `gh-engineer guide` or the individual commands instead. No extra package or curses dependency is required. Use `gh-engineer commands --search approval` or `--group work` to find an action; use `gh-engineer dashboard --proposal ../issue-123.json --json` for stable machine-readable stage data. `VERIFIED_LOCAL` means only that the saved commit-bound test report passed; an actual remote PR and its CI are **not** confirmed. `BLOCKED` means a recorded test failure or invalid report cannot be treated as a publishing pass.
 
 The current checkout is assumed by default; add `--checkout /path/to/repo` when operating elsewhere. `plan`, `apply`, `verify` and `publish` **still require** their separate authorizations. `doctor` cannot prove credentials work or attest to the Git executable or Docker daemon. Use `gh-engineer COMMAND --help` for every option.
 
@@ -205,7 +208,7 @@ Without both test options, `run` requires an explicit `--approve-unverified` and
 
 | Command | What happens | Explicit control |
 | --- | --- | --- |
-| `menu`, `guide`, `doctor`, `next` | Numbered local-only menu, instructions, preflight and read-only next-step hints | No automatic edits, provider calls or publication |
+| `menu`, `commands`, `dashboard`, `guide`, `doctor`, `next` | Menu, searchable command catalog, local evidence dashboard, guidance and preflight | No automatic edits, provider calls or publication |
 | `plan` | Read one issue/allowed source; save private proposal | `--repo`, `--issue`, `--checkout`, `--model`, repeatable `--allowed-file`, `--output`, `--allow-source-upload` |
 | `review` | Display full diff + proposal digest; no mutation | `--checkout`, `--proposal` |
 | `apply` | Local branch, commit and receipt | `--checkout`, `--proposal`, `--approve`, `--expected-sha256` |
