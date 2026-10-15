@@ -73,8 +73,8 @@ def run_isolated(checkout: Path, image: str, argv: list[str], timeout: int) -> d
         except OSError as exc:
             raise AgentError("Docker unavailable; verification did not run") from exc
         return {"exit_code": result.returncode,
-                "stdout_excerpt": (Path(cid_dir.name) / "stdout").read_bytes()[:2048].decode("utf-8", errors="replace"),
-                "stderr_excerpt": (Path(cid_dir.name) / "stderr").read_bytes()[:2048].decode("utf-8", errors="replace")}
+                "stdout_excerpt": (Path(cid_dir.name) / "stdout").open("rb").read(2048).decode("utf-8", errors="replace"),
+                "stderr_excerpt": (Path(cid_dir.name) / "stderr").open("rb").read(2048).decode("utf-8", errors="replace")}
     finally:
         cid_dir.cleanup()
 
