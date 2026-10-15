@@ -49,6 +49,80 @@ class AgentTest(unittest.TestCase):
             "edits": [{"path": "app.py", "base_sha256": sha(original.encode()), "content": "x = 2\n"}],
         }
 
+    def test_home_and_guide_are_read_only(self):
+        for argv, expected in (([], "GET STARTED"), (["guide"], "SAFE FIVE-STEP")):
+            with self.subTest(argv=argv), redirect_stdout(StringIO()) as stdout:
+                with patch.object(cli, "GitHub") as gh, patch.object(cli, "Model") as model, \\
+                     patch.object(cli, "run_git") as local_git:
+                    self.assertEqual(cli.main(argv), 0)
+                    gh.assert_not_called()
+                    model.assert_not_called()
+                    local_git.assert_not_called()
+                self.assertIn(expected, stdout.getvalue())
+                self.assertIn("gh-engineer", stdout.getvalue())
+
+    def test_cli_checkout_defaults_and_explicit_approvals(self):
+        for argv in (
+            ["review", "--proposal", str(self.planfile)],
+            ["status", "--proposal", str(self.planfile)],
+            ["next", "--proposal", str(self.planfile)],
+            ["doctor"],
+            ["apply", "--proposal", str(self.planfile), "--approve",
+             "--expected-sha256", "a" * 64],
+            ["publish", "--proposal", str(self.planfile), "--approve-publish"],
+        ):
+            with self.subTest(argv=argv):
+                args = cli.make_parser().parse_args(argv)
+                self.assertEqual(args.checkout, ".")
+        with self.assertRaises(SystemExit):
+            cli.make_parser().parse_args(["apply", "--proposal", str(self.planfile),
+                                           "--approve"])
+
+    def test_doctor_offline_checks_and_dirty_worktree(self):
+        args = ["doctor", "--checkout", str(self.checkout),
+                "--repo", "example/safe-repo"]
+        with redirect_stdout(StringIO()) as out, patch.object(cli, "GitHub") as gh:
+            self.assertEqual(cli.main(args), 0)
+            gh.assert_not_called()
+        self.assertIn("Local preflight passed", out.getvalue())
+        self.assertIn("origins match", out.getvalue())
+        self.assertNotIn("example/safe-repo.git", out.getvalue())
+        (self.checkout / "untracked.txt").write_text("dirty", encoding="utf-8")
+        with self.assertRaisesRegex(AgentError, "not clean"):
+            cli.doctor(argparse.Namespace(checkout=str(self.checkout),
+                                          repo="example/safe-repo"))
+
+    def test_next_step_tracks_local_evidence_without_mutations(self):
+        with self.assertRaisesRegex(AgentError, "Proposal not found"):
+            cli.next_step(argparse.Namespace(checkout=str(self.checkout),
+                                             proposal=str(self.planfile)))
+        private_json_write(self.planfile, self.proposal())
+        args = argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile))
+        with redirect_stdout(StringIO()) as out:
+            cli.next_step(args)
+        self.assertIn("Stage: PROPOSED", out.getvalue())
+        self.assertIn("review", out.getvalue())
+        self.assertEqual(git(self.checkout, "branch", "--show-current"), "main")
+        cli.apply(argparse.Namespace(checkout=str(self.checkout),
+                                     proposal=str(self.planfile), approve=True,
+                                     expected_sha256=sha(self.planfile.read_bytes())))
+        with redirect_stdout(StringIO()) as out:
+            cli.next_step(args)
+        self.assertIn("Verification: NOT RUN", out.getvalue())
+        receipt = json.loads(Path(str(self.planfile) + ".applied.json").read_text())
+        report = {"schema": 1, "proposal_sha256": receipt["proposal_sha256"],
+                  "commit": receipt["commit"], "branch": receipt["branch"],
+                  "exit_code": 0, "outcome": "PASS"}
+        private_json_write(verification_path(self.planfile), report)
+        with redirect_stdout(StringIO()) as out:
+            cli.next_step(args)
+        self.assertIn("Verification: PASS", out.getvalue())
+        self.assertIn("status --proposal PATH --remote", out.getvalue())
+        report["outcome"] = "FAIL"
+        verification_path(self.planfile).write_text(json.dumps(report), encoding="utf-8")
+        with self.assertRaisesRegex(AgentError, "test failure"):
+            cli.next_step(args)
+
     def test_publish_gate_rejects_missing_verification(self):
         private_json_write(self.planfile, self.proposal())
         cli.apply(argparse.Namespace(checkout=str(self.checkout), proposal=str(self.planfile),
