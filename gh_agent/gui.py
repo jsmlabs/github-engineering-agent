@@ -85,6 +85,13 @@ def inspect_process(action: str, args: list[str] | tuple[str, ...] = (), *, time
     return {"ok": True, "data": data}
 
 
+def safe_inspect_process(action: str, args: list[str] | tuple[str, ...]) -> dict:
+    """Convert unexpected worker failures to a recoverable local-only result."""
+    try:
+        return inspect_process(action, args)
+    except Exception:
+        return {"ok": False, "error": "Unexpected local inspection error; retry or use the CLI."}
+
 def selection_is_current(paths: list[str], chosen_checkout: str, checkout: str) -> bool:
     """Require a nonempty scope selected for the current resolved checkout."""
     return bool(paths) and chosen_checkout == str(Path(checkout).resolve(strict=False))
@@ -224,11 +231,7 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = tuple(args)
 
         def worker():
-            try:
-                result = inspect_process(action, snapshot)
-            except Exception:
-                result = {"ok": False, "error": "Unexpected local inspection error; retry or use the CLI."}
-            results.put((action, result, on_complete))
+            results.put((action, safe_inspect_process(action, snapshot), on_complete))
 
         threading.Thread(target=worker, daemon=True).start()
 
