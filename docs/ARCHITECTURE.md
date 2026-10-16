@@ -55,6 +55,8 @@ flowchart LR
     I --> J["Independent human review + CI"]
 ~~~
 
+Read-only `workspace` reports current checkout branch, commit, clean status, optional origin identity and presence of credentials/Docker CLI without checking network validity. `prepare` performs a local scope/identity/output preflight and returns a JSON argv preview with the source-upload permission intentionally absent. In the TTY menu the same preview is available after bounded operator prompts; no action is executed or persisted.
+
 The `dashboard` command constructs a read-only snapshot of proposal/receipt identity, commit-parent and file-blob consistency, clean checkout and bound verification state. It exposes a stable minimal JSON form, but deliberately never reports remote publication success. The `commands` catalog is static, filterable, and also supports JSON output; it cannot invoke the listed commands.
 
 The explicit `menu` command adds bounded TTY-only navigation across read-only local guidance, checkout checks and local state inspection. It keeps the last proposal path only in process memory, supports monochrome output, refuses non-interactive input, and never calls mutating/model/remote operations. No navigation choice grants permission for `plan`, `apply`, `publish` or `run`.
