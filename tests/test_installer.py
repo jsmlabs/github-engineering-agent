@@ -65,6 +65,33 @@ class InstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "symlink"):
                 installer.validate_target(target)
 
+    def test_managed_marker_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            root = Path(d)
+            target = root / "managed"
+            target.mkdir()
+            source = root / "marker"
+            source.write_text(installer.MARKER)
+            try:
+                (target / ".gh-engineer-managed").symlink_to(source)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink creation unavailable")
+            with self.assertRaisesRegex(ValueError, "Symlinked"):
+                installer.require_managed(target)
+
+    def test_release_slot_rejects_unknown_entries(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d)
+            digest = "b" * 64
+            slot = target / "releases" / digest
+            slot.mkdir(parents=True)
+            (slot / ".slot-managed").write_text(installer.SLOT_MARKER)
+            (slot / "unexpected.txt").write_text("keep")
+            with self.assertRaisesRegex(ValueError, "Unexpected release files"):
+                installer._install_locked(target, Path("unused.whl"), digest, "0.2.0",
+                    {"schema": 1, "active": None, "previous": None, "versions": {}})
+            self.assertTrue((slot / "unexpected.txt").exists())
+
     def test_initial_state_and_no_rollback(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "installed"
