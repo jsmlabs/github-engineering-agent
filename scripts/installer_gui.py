@@ -14,8 +14,8 @@ from installer import default_target, install, rollback, status as install_statu
 def main() -> None:
     root = tk.Tk()
     root.title("GitHub Engineering Agent · Installation Manager")
-    root.geometry("980x520")
-    root.minsize(840, 460)
+    root.geometry("900x640")
+    root.minsize(720, 530)
     target = tk.StringVar(value=str(default_target()))
     wheel = tk.StringVar()
     digest = tk.StringVar()
@@ -39,10 +39,16 @@ def main() -> None:
     field("Expected SHA-256", digest)
     ttk.Label(frame, text="Use a trusted wheel and independently obtained checksum. Verified updates keep the prior release for rollback.").pack(anchor="w", pady=(12, 4))
 
+    ttk.Label(frame, text="MAINTENANCE ACTIONS", font=("TkDefaultFont", 10, "bold")).pack(anchor="w", pady=(10, 4))
     actions = ttk.Frame(frame)
-    actions.pack(fill="x", pady=14)
+    actions.pack(fill="x", pady=(0, 8))
+    for column in range(4):
+        actions.columnconfigure(column, weight=1)
     buttons = []
     results: Queue[tuple[str, str]] = Queue()
+    busy = False
+    progress = ttk.Progressbar(frame, mode="indeterminate")
+    progress.pack(fill="x", pady=(6, 4))
 
     def poll_results():
         try:
@@ -50,16 +56,30 @@ def main() -> None:
         except Empty:
             pass
         else:
-            status.set(message)
+            status.set("Completed" if kind == "ok" else "Failed · review the details below")
+            show(message)
             set_busy(False)
         root.after(100, poll_results)
 
 
-    def set_busy(busy):
+    def set_busy(value):
+        nonlocal busy
+        busy = value
         for button in buttons:
-            button.configure(state="disabled" if busy else "normal")
+            button.configure(state="disabled" if value else "normal")
+        if value:
+            progress.start(12)
+        else:
+            progress.stop()
 
     def execute(action):
+        if busy:
+            return
+        if action in ("install", "update", "repair") and (not wheel.get().strip() or len(digest.get().strip()) != 64):
+            messagebox.showwarning("Missing release input", "Select a trusted wheel and provide its 64-character SHA-256 checksum.")
+            return
+        if action == "rollback" and not messagebox.askyesno("Rollback", "Restore the previously verified release?"):
+            return
         if action == "uninstall":
             if not messagebox.askyesno("Remove installation", "Remove the managed application environment? Unknown files block removal."):
                 return
@@ -92,18 +112,49 @@ def main() -> None:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    for title, action in (("Environment", "setup"), ("Install", "install"), ("Update", "update"),
-                          ("Repair", "repair"), ("Status", "status"),
-                          ("Rollback", "rollback"), ("Verify", "verify"),
-                          ("Uninstall", "uninstall")):
+    for index, (title, action) in enumerate((("1 · Environment", "setup"), ("2 · Install", "install"),
+                          ("3 · Update", "update"), ("4 · Repair", "repair"),
+                          ("5 · Status", "status"), ("6 · Verify", "verify"),
+                          ("7 · Rollback", "rollback"), ("8 · Uninstall", "uninstall"))):
         button = ttk.Button(actions, text=title, command=lambda action=action: execute(action))
-        button.pack(side="left", padx=(0, 8))
+        button.grid(row=index // 4, column=index % 4, sticky="ew", padx=(0, 7), pady=4)
         buttons.append(button)
 
-    ttk.Separator(frame).pack(fill="x", pady=(16, 12))
-    ttk.Label(frame, text="Status", font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
-    ttk.Label(frame, textvariable=status, wraplength=820).pack(anchor="w", fill="x", pady=(6, 0))
-    ttk.Label(frame, text="No GitHub/OpenAI tokens are requested or stored. Application configuration is not modified.").pack(anchor="w", pady=(20, 0))
+    ttk.Separator(frame).pack(fill="x", pady=(10, 8))
+    ttk.Label(frame, text="STATUS & DETAILS", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+    ttk.Label(frame, textvariable=status, wraplength=820).pack(anchor="w", fill="x", pady=(4, 6))
+    results_frame = ttk.Frame(frame)
+    results_frame.pack(fill="both", expand=True)
+    details = tk.Text(results_frame, height=8, wrap="word", state="disabled", font=("TkFixedFont", 10))
+    details.pack(side="left", fill="both", expand=True)
+    scroll = ttk.Scrollbar(results_frame, orient="vertical", command=details.yview)
+    scroll.pack(side="right", fill="y")
+    details.configure(yscrollcommand=scroll.set)
+
+    def show(message):
+        details.configure(state="normal")
+        details.delete("1.0", "end")
+        details.insert("1.0", message)
+        details.configure(state="disabled")
+
+    footer = ttk.Frame(frame)
+    footer.pack(fill="x", pady=(6, 0))
+    ttk.Label(footer, text="Local-only · No secrets stored · No automatic downloads").pack(side="left")
+    def copy_details():
+        value = details.get("1.0", "end-1c")
+        if value:
+            root.clipboard_clear()
+            root.clipboard_append(value)
+    ttk.Button(footer, text="Copy details", command=copy_details).pack(side="right")
+    root.bind("<Control-Shift-C>", lambda _event: copy_details())
+
+    def close():
+        if busy:
+            messagebox.showwarning("Operation running", "Finish the current operation before closing the manager.")
+            return
+        root.destroy()
+    root.protocol("WM_DELETE_WINDOW", close)
+    show("Choose Environment to inspect local prerequisites or select a wheel to install.")
     root.after(100, poll_results)
     root.mainloop()
 
