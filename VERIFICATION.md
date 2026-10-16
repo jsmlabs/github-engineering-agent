@@ -7,14 +7,14 @@
 
 ## Latest verified baseline
 
-**Verified baseline: merged PR #24 on `main`, 2026-10-16.**
+**Verified baseline: merged PR #25 on `main`, 2026-10-16.**
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`b589a95ebbfc688afb998614f5c7ce59a56ab3b3`](https://github.com/jsmlabs/github-engineering-agent/commit/b589a95ebbfc688afb998614f5c7ce59a56ab3b3) |
-| Offline workflow on that commit | [Run 38827691004](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38827691004): **completed / success** |
+| Authoritative `main` commit | [`98b950c90616141ff2510d530361f6d599f08afe`](https://github.com/jsmlabs/github-engineering-agent/commit/98b950c90616141ff2510d530361f6d599f08afe) |
+| Offline workflow on that commit | [Run 38830186202](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38830186202): **completed / success** |
 | Matrix | **7/7 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 plus Ubuntu/Python 3.12 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **97 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Concrete test observation | Ubuntu/Python 3.13 job: **102 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
 | Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
 | Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
 | Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
@@ -38,6 +38,7 @@ The snapshot SHA and workflow identify the last verified merged baseline before 
 | [#22 interactive terminal menu](https://github.com/jsmlabs/github-engineering-agent/pull/22) | [38825599974](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38825599974), **7/7 pass** | [38825769320](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38825769320), **success** on `4511a89f97e1e0eb1b67baadee1c4a44bbf967e5` | Offline 87-test suite with menu, TTY, no-color and safe-navigation regressions |
 | [#23 dashboard and catalog](https://github.com/jsmlabs/github-engineering-agent/pull/23) | [38826491153](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38826491153), **7/7 pass** | [38826698236](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38826698236), **success** on `5ba2d2607c4b23e8a19417af1626f4e3009ad497` | Offline 92-test suite including dashboard-state and command-catalog regressions |
 | [#24 workspace and plan preview](https://github.com/jsmlabs/github-engineering-agent/pull/24) | [38827438995](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38827438995), **7/7 pass** | [38827691004](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38827691004), **success** on `b589a95ebbfc688afb998614f5c7ce59a56ab3b3` | Offline 97-test suite with workspace, dry-run plan-preview and menu safety regressions |
+| [#25 file finder and task recipes](https://github.com/jsmlabs/github-engineering-agent/pull/25) | [38829976622](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38829976622), **7/7 pass** | [38830186202](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38830186202), **success** on `98b950c90616141ff2510d530361f6d599f08afe` | 102 offline tests including menu, file scope and static recipe coverage |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.

@@ -49,6 +49,54 @@ class AgentTest(unittest.TestCase):
             "edits": [{"path": "app.py", "base_sha256": sha(original.encode()), "content": "x = 2\n"}],
         }
 
+    def test_gui_backend_rejects_mutating_commands_and_permissions(self):
+        from gh_agent import gui
+        for action in ("plan", "apply", "publish", "run", "verify", "status", "evil"):
+            with self.subTest(action=action):
+                with self.assertRaisesRegex(ValueError, "read-only"):
+                    gui.inspect(action)
+        for opt in ("--allow-source-upload", "--approve", "--approve-publish", "--remote"):
+            with self.subTest(opt=opt):
+                with self.assertRaisesRegex(ValueError, "permissions"):
+                    gui.inspect("workspace", [opt])
+        with self.assertRaisesRegex(ValueError, "string arguments"):
+            gui.inspect("workspace", [None])
+
+    def test_gui_backend_local_actions_are_read_only(self):
+        from gh_agent import gui
+        result = gui.inspect("workspace", ["--checkout", str(self.checkout)])
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["data"]["clean"])
+        self.assertFalse(result["data"]["network_checked"])
+        result = gui.inspect("files", ["--checkout", str(self.checkout)])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["files"], ["app.py"])
+        result = gui.inspect("prepare", ["--checkout", str(self.checkout),
+            "--repo", "example/safe-repo", "--issue", "7", "--model", "stub",
+            "--allowed-file", "app.py", "--output", str(self.planfile)])
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["data"]["executed"])
+        self.assertNotIn("--allow-source-upload", result["data"]["argv"])
+        self.assertFalse(self.planfile.exists())
+
+    def test_gui_backend_returns_controlled_errors(self):
+        from gh_agent import gui
+        result = gui.inspect("dashboard", ["--checkout", str(self.checkout),
+                                           "--proposal", str(self.planfile)])
+        self.assertFalse(result["ok"])
+        self.assertIn("Proposal not found", result["error"])
+        result = gui.inspect("guide")
+        self.assertTrue(result["ok"])
+        self.assertIn("SAFE FIVE-STEP WORKFLOW", result["data"]["text"])
+
+    def test_gui_help_requires_no_display_or_tk(self):
+        with redirect_stdout(StringIO()) as out:
+            with self.assertRaises(SystemExit) as finished:
+                cli.main(["gui", "--help"])
+        self.assertEqual(finished.exception.code, 0)
+        self.assertIn("--checkout", out.getvalue())
+        self.assertIn("--proposal", out.getvalue())
+
     def test_home_and_guide_are_read_only(self):
         for argv, expected in (([], "GET STARTED"), (["guide"], "SAFE FIVE-STEP")):
             with self.subTest(argv=argv), redirect_stdout(StringIO()) as stdout:

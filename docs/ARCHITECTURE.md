@@ -55,6 +55,8 @@ flowchart LR
     I --> J["Independent human review + CI"]
 ~~~
 
+An optional GUI frontend (`gh_agent/gui.py`) imports Tkinter lazily and shows local workspace, file paths, proposal progress and read-only plan previews in a desktop window. It reuses the CLI's validation through a strict read-only command allowlist. It neither starts HTTP listeners nor executes the mutating agent flow. The existing CLI permission boundaries remain authoritative.
+
 The `files` CLI uses the existing trusted local `tracked_sources` and path eligibility checks to list bounded, searchable filenames without loading content or contacting remote providers; this is not an authorization decision or a secret scan. `recipes` renders fixed, task-specific examples without executing their commands. Both offer JSON output and are accessible from the bounded TTY menu.
 
 Read-only `workspace` reports current checkout branch, commit, clean status, optional origin identity and presence of credentials/Docker CLI without checking network validity. `prepare` performs a local scope/identity/output preflight and returns a JSON argv preview with the source-upload permission intentionally absent. In the TTY menu the same preview is available after bounded operator prompts; no action is executed or persisted.

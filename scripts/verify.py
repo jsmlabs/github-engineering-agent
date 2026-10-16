@@ -20,6 +20,7 @@ COMMANDS = [
     [sys.executable, "-m", "gh_agent", "prepare", "--help"],
     [sys.executable, "-m", "gh_agent", "files", "--help"],
     [sys.executable, "-m", "gh_agent", "recipes", "--json"],
+    [sys.executable, "-m", "gh_agent", "gui", "--help"],
     [sys.executable, "-m", "gh_agent", "recipes", "--topic", "scope"],
     [sys.executable, "-m", "gh_agent", "doctor", "--help"],
     [sys.executable, "-m", "gh_agent", "next", "--help"],

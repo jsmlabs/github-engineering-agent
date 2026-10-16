@@ -805,6 +805,7 @@ def overview(args=None) -> None:
     print("Issue -> reviewed changes -> local commit -> verified pull request")
     print()
     print("GET STARTED")
+    print("  gh-engineer gui                    Graphical desktop dashboard (Tkinter)")
     print("  gh-engineer menu                   Interactive, read-only local dashboard")
     print("  gh-engineer guide                  Five-step, copyable workflow")
     print("  gh-engineer doctor                 Check this workstation and checkout")
@@ -923,6 +924,12 @@ def next_step(args) -> None:
     print("All next steps require their own explicit flags; none ran here.")
 
 
+def launch_desktop_gui(args) -> None:
+    from .gui import main as graphical_interface
+    if graphical_interface(["--checkout", args.checkout, "--proposal", args.proposal]) != 0:
+        raise AgentError("Desktop GUI could not start; use 'gh-engineer menu'.")
+
+
 def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gh-engineer",
@@ -931,6 +938,10 @@ def make_parser() -> argparse.ArgumentParser:
     )
     parser.set_defaults(func=overview)
     sub = parser.add_subparsers(dest="command")
+    p = sub.add_parser("gui", help="Optional graphical desktop interface (read-only)")
+    p.add_argument("--checkout", default=".", help="Target Git checkout")
+    p.add_argument("--proposal", default="", help="Existing proposal JSON outside checkout")
+    p.set_defaults(func=launch_desktop_gui)
     p = sub.add_parser("menu", help="Interactive local-only menu (requires a terminal)")
     p.add_argument("--checkout", default=".", help="Target checkout root (default: current directory)")
     p.add_argument("--repo", help="Optional repository identity for local doctor checks")

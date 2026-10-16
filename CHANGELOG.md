@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Optional GUI-first desktop workflow
+
+- Add an optional Tkinter desktop application (`gh-engineer gui`) with workspace overview, eligible-file multiselect, validated plan preview and help tabs.
+- Keep the GUI local and read-only: no HTTP listener, model call, source upload, repository mutation or PR publication. Provide error handling for missing Tkinter or headless environments, with the existing terminal menu as fallback.
+- Add GUI backend allowlist and headless regression coverage without adding mandatory Python dependencies.
+
 ### Scoped file discovery and task recipes
 
 - Add `gh-engineer files` to search eligible tracked file paths locally, with bounded result counts (1-50), name filtering and JSON output; protect excluded paths and never read selected contents or approve their upload.
