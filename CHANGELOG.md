@@ -2,9 +2,15 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev0** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev1** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Installer state validation (unreleased)
+
+- Reject a boolean `schema` value that Python previously considered equal to integer 1; require all installation-state fields before access.
+- Bound local state reads to 256,000 bytes and reject duplicate JSON keys and nonstandard numeric constants. Invalid state fails closed without overwriting the file.
+- Add focused negative-path regression tests; advance unpublished development metadata to **0.3.0.dev1** (no release, API change, dependency or migration).
 
 ### Launcher runtime fix and development metadata
 
