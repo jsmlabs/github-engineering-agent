@@ -52,15 +52,17 @@ def validate_target(target: Path) -> Path:
 def operation_lock(target: Path):
     """Serialize state-changing operations, failing closed on an existing lock."""
     lock = target / ".installer.lock"
+    owned = False
     try:
         with lock.open("x", encoding="utf-8") as handle:
             handle.write("installer operation in progress\n")
+        owned = True
         yield
     except FileExistsError as exc:
         raise ValueError("Another installation operation is active; inspect lock before retry") from exc
     finally:
         # Never remove an existing lock owned by another process.
-        if "handle" in locals() and lock.is_file():
+        if owned and lock.is_file():
             lock.unlink()
 
 
@@ -106,6 +108,8 @@ def require_managed(target: Path) -> None:
 def read_state(target: Path) -> dict:
     require_managed(target)
     state_file = target / "state.json"
+    if state_file.is_symlink():
+        raise ValueError("Symlinked installation state is not allowed")
     if not state_file.is_file():
         return {"schema": 1, "active": None, "previous": None, "versions": {}}
     state = json.loads(state_file.read_text(encoding="utf-8"))
@@ -124,7 +128,7 @@ def read_state(target: Path) -> dict:
 
 def write_state(target: Path, state: dict) -> None:
     candidate = target / "state.json.tmp"
-    if candidate.exists():
+    if candidate.exists() or candidate.is_symlink():
         raise ValueError("Interrupted state update detected; inspect before retrying")
     try:
         with candidate.open("x", encoding="utf-8") as handle:
@@ -144,6 +148,8 @@ def run_checked(args: list[str], *, capture: bool = False) -> str:
 
 
 def verify_slot(slot: Path, expected_version: str) -> None:
+    if slot.is_symlink() or (slot / ".slot-managed").is_symlink():
+        raise ValueError("Symlinked release slot marker is not allowed")
     if (slot / ".slot-managed").read_text(encoding="utf-8") != SLOT_MARKER:
         raise ValueError("Release slot marker is invalid")
     environment_dir = slot / "venv"
@@ -165,7 +171,6 @@ def install(target: Path, wheel: Path, digest: str) -> str:
     marker = target / ".gh-engineer-managed"
     if target.exists():
         require_managed(target)
-        state = read_state(target)
     else:
         target.mkdir(parents=True)
         try:
@@ -173,9 +178,8 @@ def install(target: Path, wheel: Path, digest: str) -> str:
         except BaseException:
             target.rmdir()
             raise
-        state = read_state(target)
     with operation_lock(target):
-        return _install_locked(target, wheel, digest, version, state)
+        return _install_locked(target, wheel, digest, version, read_state(target))
 
 
 def _install_locked(target: Path, wheel: Path, digest: str, version: str, state: dict) -> str:
@@ -285,6 +289,8 @@ def uninstall(target: Path, confirmation: str) -> str:
 
 
 def _uninstall_locked(target: Path) -> str:
+    if (target / "state.json").is_symlink():
+        raise ValueError("Symlinked installation state is not allowed")
     allowed = {".gh-engineer-managed", "state.json", "releases", ".installer.lock"}
     if any(entry.name not in allowed for entry in target.iterdir()):
         raise ValueError("Unexpected user files exist; refusing uninstall")
@@ -296,6 +302,8 @@ def _uninstall_locked(target: Path) -> str:
             if (not slot.is_dir() or slot.is_symlink() or not HEX64.fullmatch(slot.name)
                     or not (slot / ".slot-managed").is_file()
                     or (slot / ".slot-managed").read_text() != SLOT_MARKER
+                    or (slot / ".slot-managed").is_symlink()
+                    or (slot / "venv").is_symlink()
                     or any(entry.name not in {"venv", ".slot-managed"} for entry in slot.iterdir())):
                 raise ValueError("Unrecognized release content; refusing uninstall")
     # The outer lock is removed by its owner after this operation completes.
