@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import importlib.util
 from pathlib import Path
 import sys
@@ -41,6 +42,16 @@ class InstallerE2ETests(unittest.TestCase):
             self.assertIn("0.2.0", installer.install(target, first, first_hash))
             self.assertIn("0.2.0", installer.verify(target))
             self.assertIn("no reinstall", installer.install(target, first, first_hash))
+            python = installer.python_in(target / "releases" / first_hash)
+            entry = subprocess.check_output(
+                [str(python), "-c", "import gh_agent; print(gh_agent.__file__)"],
+                text=True,
+            ).strip()
+            Path(entry).with_name("__main__.py").unlink()
+            with self.assertRaises(subprocess.CalledProcessError):
+                installer.verify(target)
+            self.assertIn("0.2.0", installer.install(target, first, first_hash, repair=True))
+            self.assertIn("0.2.0", installer.verify(target))
             self.assertIn("0.2.1", installer.install(target, second, second_hash))
             self.assertIn("0.2.1", installer.verify(target))
             self.assertIn("0.2.0", installer.rollback(target))
