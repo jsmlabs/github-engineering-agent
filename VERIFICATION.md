@@ -24,6 +24,10 @@
 
 This iteration adds offline unit coverage for checksum syntax and action-specific completion feedback. GUI display, accessibility, Windows/macOS/Linux interaction and live installation results have **not** been independently verified by this change alone. Version `0.3.0.dev3` is development metadata, not a published artifact.
 
+## Desktop responsiveness change (unreleased)
+
+This change introduces a subprocess-backed GUI inspection path and headless regression tests. A passing CI suite does not establish real GUI rendering or accessibility on Windows, macOS, or Linux. The version `0.3.0.dev4` remains unpublished development metadata.
+
 ## Recent change evidence
 
 | Scope | PR-head CI | Integrated target-branch evidence | What it establishes |
