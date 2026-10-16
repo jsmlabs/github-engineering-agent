@@ -8,7 +8,7 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 
 [![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)
-![Unreleased development metadata v0.3.0.dev1](https://img.shields.io/badge/package-0.3.0.dev1--unreleased-64748b)
+![Unreleased development metadata v0.3.0.dev2](https://img.shields.io/badge/package-0.3.0.dev2--unreleased-64748b)
 ![Reference implementation](https://img.shields.io/badge/maturity-reference-64748b)
 
 **`plan` → `review` → `apply` → `verify` → `publish`**
@@ -165,6 +165,8 @@ python scripts/verify.py
 GitHub Actions runs the offline checks on Ubuntu, macOS and Windows with Python 3.11/3.13, plus Python 3.12 on Ubuntu. These checks do **not** replace authenticated provider or real Docker end-to-end validation.
 
 The installed entry point is also `gh-engineer`. The runtime uses Python's standard library; package installation may require build tooling. `scripts/verify.py` checks compilation, offline unit tests and CLI help — **not live services**.
+
+**Packaging verification:** `python scripts/verify_package.py` builds a wheel from a disposable source snapshot without contacting package indexes, inspects wheel metadata and CLI entry points, installs into a temporary isolated virtual environment, and tests both `python -m gh_agent --help` and `gh-engineer --help`. A separately reported three-OS CI packaging matrix complements the seven existing offline unit-test jobs; it requires preinstalled build tooling and does not publish a release, prove provenance, or exercise a live model/GitHub workflow.
 
 ### 3. Plan, inspect and approve
 
@@ -323,7 +325,7 @@ Remote push and PR creation are **not atomic**; a pushed branch may exist withou
 
 **Source:** [CLI](gh_agent/cli.py) · [Policy & Git](gh_agent/core.py) · [HTTP & model](gh_agent/services.py) · [Docker verification](gh_agent/verification.py) · [Tests](tests/test_agent.py) · [Offline runner](scripts/verify.py).
 
-**Compatibility:** Unpublished development package metadata **0.3.0.dev1** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
+**Compatibility:** Unpublished development package metadata **0.3.0.dev2** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
 
 <details>
 <summary><strong>Engineering references and upstream APIs</strong></summary>
