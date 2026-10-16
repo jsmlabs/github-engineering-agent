@@ -81,7 +81,7 @@ def install(target: Path, wheel: Path, digest: str) -> str:
     target.mkdir(parents=True, exist_ok=True)
     # Own the dedicated directory before external installation steps; interrupted
     # first installs can then be repaired without weakening unmanaged-path checks.
-    marker.write_text("github-engineering-agent managed installation v1\\n".replace("\\\\n", "\\n"), encoding="utf-8")
+    marker.write_text("github-engineering-agent managed installation v1\n", encoding="utf-8")
     environment = python_in(target)
     if not environment.is_file():
         venv.EnvBuilder(with_pip=True).create(target / "venv")
