@@ -40,13 +40,13 @@ class InstallerTests(unittest.TestCase):
             with zipfile.ZipFile(wheel, "w") as archive:
                 archive.writestr("../outside.txt", "unexpected")
                 archive.writestr("github_engineering_agent-0.2.0.dist-info/METADATA",
-                                 "Name: github-engineering-agent\\nVersion: 0.2.0\\n")
+                                 "Name: github-engineering-agent\nVersion: 0.2.0\n")
             digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ValueError, "unsafe archive"):
                 installer.validate_wheel(wheel, digest)
             with zipfile.ZipFile(wheel, "w") as archive:
                 archive.writestr("github_engineering_agent-0.2.0.dist-info/METADATA",
-                                 "Name: wrong-package\\nVersion: 0.2.0\\n")
+                                 "Name: wrong-package\nVersion: 0.2.0\n")
             digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
             with self.assertRaisesRegex(ValueError, "distribution metadata"):
                 installer.validate_wheel(wheel, digest)
