@@ -22,14 +22,18 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 
 ## Local installation and maintenance (preview)
 
-The repository includes an **offline, user-scoped installation manager** for a trusted local Python wheel. It does **not** discover releases, download artifacts, install Python or Git, create shortcuts, retain rollback versions, or automatically update from `main`. Use Python 3.11+ and verify the wheel checksum **independently** before installation.
+The repository includes an **offline, user-scoped installation manager** for a trusted local Python wheel. It does **not** discover releases, download artifacts, install Python or Git, create shortcuts or automatically update from `main`. Use Python 3.11+ and verify the wheel checksum **independently** before installation.
 
 ~~~bash
-python scripts/setup_check.py --json\npython scripts/installer.py install --wheel /path/to/release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
+python scripts/setup_check.py --json
+python scripts/installer.py install --wheel /path/to/release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
 python scripts/installer.py verify
 python scripts/installer.py repair --wheel /path/to/release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
 python scripts/installer.py update --wheel /path/to/new-release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
-python scripts/installer.py rollback\npython scripts/installer.py status\npython scripts/installer.py launch --agent-args gui\npython scripts/installer.py uninstall --confirm UNINSTALL
+python scripts/installer.py rollback
+python scripts/installer.py status
+python scripts/installer.py launch --agent-args gui
+python scripts/installer.py uninstall --confirm UNINSTALL
 ~~~
 
 On Windows, double-click `install-windows.cmd` to maintain the installation or `run-agent.cmd` to start the active agent. On macOS/Linux, use `sh ./install-unix.sh` or `sh ./run-agent.sh`. These launchers require preinstalled Python/Tk and never download the application or dependencies. The maintenance GUI also offers an **Environment** check for local Python, Git, Docker and credential presence. It does not validate remote access or show secret values. On a graphical workstation, use `python scripts/installer_gui.py` for Install, Update/Repair, Verify and Uninstall actions. It uses OS Tkinter when available and runs operations off the UI thread. The managed directory defaults to the user's local application-data location. Installing into an existing unmarked directory is refused; uninstall requires a marker and refuses unexpected top-level files. The application keeps its normal explicit CLI permissions and does not prompt for or store credentials.
