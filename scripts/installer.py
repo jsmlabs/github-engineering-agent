@@ -39,7 +39,7 @@ def validate_target(target: Path) -> Path:
     return path
 
 
-def validate_wheel(path: Path, expected_sha256: str) -> tuple[Path, str]:
+def validate_wheel(path: Path, expected_sha256: str) -> tuple[Path, str, str]:
     if len(expected_sha256) != 64 or any(c not in "0123456789abcdef" for c in expected_sha256):
         raise ValueError("Provide a lowercase 64-digit SHA-256 digest")
     wheel = path.expanduser().resolve(strict=True)
@@ -51,11 +51,17 @@ def validate_wheel(path: Path, expected_sha256: str) -> tuple[Path, str]:
         raise ValueError("Wheel integrity check failed")
     with zipfile.ZipFile(wheel) as archive:
         members = archive.namelist()
-        if not any(name.endswith(".dist-info/METADATA") and name.startswith("github_engineering_agent-") for name in members):
+        metadata_files = [name for name in members if name.endswith(".dist-info/METADATA") and name.startswith("github_engineering_agent-")]
+        if len(metadata_files) != 1:
             raise ValueError("Wheel is not the expected package")
+        metadata = archive.read(metadata_files[0]).decode("utf-8")
+        fields = dict(line.split(": ", 1) for line in metadata.splitlines() if line.startswith(("Name: ", "Version: ")))
+        if fields.get("Name") != PACKAGE or not fields.get("Version"):
+            raise ValueError("Unexpected wheel package metadata")
+        version = fields["Version"]
         if any(name.startswith("/") or ".." in Path(name).parts or "\\" in name for name in members):
             raise ValueError("Wheel contains unsafe archive paths")
-    return wheel, actual
+    return wheel, actual, version
 
 
 def python_in(target: Path) -> Path:
@@ -68,7 +74,7 @@ def run_command(argv: list[str]) -> None:
 
 def install(target: Path, wheel: Path, digest: str) -> str:
     target = validate_target(target)
-    wheel, digest = validate_wheel(wheel, digest)
+    wheel, digest, version = validate_wheel(wheel, digest)
     marker = target / ".gh-engineer-managed"
     if target.exists() and not marker.is_file():
         raise ValueError("Existing directory is not managed by this installer")
@@ -78,6 +84,12 @@ def install(target: Path, wheel: Path, digest: str) -> str:
         venv.EnvBuilder(with_pip=True).create(target / "venv")
     run_command([str(environment), "-m", "pip", "install", "--no-index", "--no-deps", "--force-reinstall", str(wheel)])
     run_command([str(environment), "-m", "gh_agent", "--help"])
+    observed = subprocess.run(
+        [str(environment), "-c", "from importlib.metadata import version; print(version('github-engineering-agent'))"],
+        check=True, capture_output=True, text=True, timeout=30,
+    ).stdout.strip()
+    if observed != version:
+        raise ValueError("Installed version does not match the selected wheel")
     marker.write_text("github-engineering-agent managed installation v1\n", encoding="utf-8")
     return "Installation verified"
 
