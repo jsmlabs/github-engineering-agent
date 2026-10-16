@@ -12,6 +12,10 @@
 - macOS/Linux: run `sh ./install-unix.sh` from the repository root.
 - After installation, use `run-agent.cmd` on Windows or `sh ./run-agent.sh` on macOS/Linux to launch the active verified release. Both setup launchers are frontend entry points only. They do not download or install Python, Git or release files; supply a trusted local wheel and checksum in the interface.
 
+## Environment readiness
+
+Run `python scripts/setup_check.py --json` to inspect Python compatibility, Git/Docker CLI presence, and GitHub/OpenAI credential **presence only**. No external requests, secret values, permissions or configuration changes occur. The same check is available as **Environment** in the GUI.
+
 ## Usage
 ```bash
 python scripts/installer.py install --wheel /absolute/release.whl --sha256 CHECKSUM
