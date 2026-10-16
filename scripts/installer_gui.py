@@ -7,14 +7,14 @@ from queue import Empty, Queue
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from installer import default_target, install, uninstall, verify
+from installer import default_target, install, rollback, status as install_status, uninstall, verify
 
 
 def main() -> None:
     root = tk.Tk()
     root.title("GitHub Engineering Agent · Installation Manager")
-    root.geometry("740x470")
-    root.minsize(620, 410)
+    root.geometry("900x500")
+    root.minsize(760, 440)
     target = tk.StringVar(value=str(default_target()))
     wheel = tk.StringVar()
     digest = tk.StringVar()
@@ -36,7 +36,7 @@ def main() -> None:
     field("Release wheel", wheel, lambda: wheel.set(
         filedialog.askopenfilename(filetypes=[("Python wheel", "*.whl")]) or wheel.get()))
     field("Expected SHA-256", digest)
-    ttk.Label(frame, text="Use a trusted wheel and an independently obtained checksum. Update/repair reinstall it.").pack(anchor="w", pady=(12, 4))
+    ttk.Label(frame, text="Use a trusted wheel and independently obtained checksum. Verified updates keep the prior release for rollback.").pack(anchor="w", pady=(12, 4))
 
     actions = ttk.Frame(frame)
     actions.pack(fill="x", pady=14)
@@ -75,6 +75,10 @@ def main() -> None:
                     result = install(*snapshot)
                 elif action == "verify":
                     result = verify(snapshot[0])
+                elif action == "status":
+                    result = install_status(snapshot[0])
+                elif action == "rollback":
+                    result = rollback(snapshot[0])
                 else:
                     result = uninstall(snapshot[0], confirm)
                 results.put(("ok", result))
@@ -84,15 +88,17 @@ def main() -> None:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    for title, action in (("Install", "install"), ("Update / Repair", "repair"),
-                          ("Verify", "verify"), ("Uninstall", "uninstall")):
+    for title, action in (("Install", "install"), ("Update", "update"),
+                          ("Repair", "repair"), ("Status", "status"),
+                          ("Rollback", "rollback"), ("Verify", "verify"),
+                          ("Uninstall", "uninstall")):
         button = ttk.Button(actions, text=title, command=lambda action=action: execute(action))
         button.pack(side="left", padx=(0, 8))
         buttons.append(button)
 
     ttk.Separator(frame).pack(fill="x", pady=(16, 12))
     ttk.Label(frame, text="Status", font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
-    ttk.Label(frame, textvariable=status, wraplength=660).pack(anchor="w", fill="x", pady=(6, 0))
+    ttk.Label(frame, textvariable=status, wraplength=820).pack(anchor="w", fill="x", pady=(6, 0))
     ttk.Label(frame, text="No GitHub/OpenAI tokens are requested or stored. Application configuration is not modified.").pack(anchor="w", pady=(20, 0))
     root.after(100, poll_results)
     root.mainloop()
