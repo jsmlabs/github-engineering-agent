@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Security](../SECURITY.md) · [Verification](../VERIFICATION.md)
 
-**Implemented contract for development package metadata `0.3.0.dev5` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
+**Implemented contract for development package metadata `0.3.0.dev6` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
 
 ## System overview
 
@@ -154,3 +154,8 @@ The optional Tkinter desktop delegates allowlisted local inspections to isolated
 ### Worker recovery and UI lifecycle
 
 Local GUI workers turn unexpected Python exceptions into generic failure messages before returning to the Tk event loop. During a running inspection, additional file-search requests do not clear selected scope. The window refuses closure while an inspection is active to avoid orphaned work. This does not expand the read-only GUI permission boundary.
+
+
+### Desktop activity feedback
+
+The read-only GUI uses a Tk-managed indeterminate activity indicator and temporarily disables competing inspection buttons while a bounded subprocess runs. Completion restores controls through the UI thread and reports a local-only outcome. No repository writes or remote access are introduced.

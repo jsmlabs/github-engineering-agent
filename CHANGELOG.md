@@ -2,9 +2,16 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev5** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev6** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Local desktop activity feedback
+
+- Show indeterminate activity while a read-only local inspection is running and disable competing inspection actions until completion.
+- Keep success and error wording explicitly local; add headless status-contract tests.
+- Advance unpublished development metadata to **0.3.0.dev6** without changing CLI authority or publishing a release.
+
 
 ### Desktop worker failure recovery
 

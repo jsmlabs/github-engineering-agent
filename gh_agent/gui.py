@@ -92,6 +92,11 @@ def safe_inspect_process(action: str, args: list[str] | tuple[str, ...]) -> dict
     except Exception:
         return {"ok": False, "error": "Unexpected local inspection error; retry or use the CLI."}
 
+def inspection_status(action: str, ok: bool) -> str:
+    """Local completion is not remote verification."""
+    return f"{action}: {'complete' if ok else 'failed'} · local only"
+
+
 def selection_is_current(paths: list[str], chosen_checkout: str, checkout: str) -> bool:
     """Require a nonempty scope selected for the current resolved checkout."""
     return bool(paths) and chosen_checkout == str(Path(checkout).resolve(strict=False))
@@ -178,6 +183,8 @@ def main(argv: list[str] | None = None) -> int:
     output.configure(yscrollcommand=output_scroll.set)
     output.configure(takefocus=True)
     status = tk.StringVar(value="Ready · local inspection only")
+    activity = ttk.Progressbar(frame, mode="indeterminate")
+    activity.pack(fill="x", pady=(0, 3))
     footer = ttk.Frame(frame)
     footer.pack(fill="x", pady=(6, 0))
     ttk.Label(footer, textvariable=status).pack(side="left", fill="x", expand=True)
@@ -200,6 +207,17 @@ def main(argv: list[str] | None = None) -> int:
         output.configure(state="disabled")
     results: Queue[tuple[str, dict, object]] = Queue()
     busy = False
+    action_buttons = []
+
+    def set_busy(value):
+        nonlocal busy
+        busy = value
+        for control in action_buttons:
+            control.configure(state="disabled" if value else "normal")
+        if value:
+            activity.start(12)
+        else:
+            activity.stop()
 
     def poll_results():
         nonlocal busy
@@ -208,9 +226,9 @@ def main(argv: list[str] | None = None) -> int:
         except Empty:
             pass
         else:
-            busy = False
+            set_busy(False)
             show(result.get("data", result.get("error")))
-            status.set(f"{action}: {'complete' if result['ok'] else 'validation failed'} · local only")
+            status.set(inspection_status(action, result["ok"]))
             if on_complete is not None:
                 on_complete(result)
         root.after(100, poll_results)
@@ -226,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
             show(str(exc))
             status.set("Invalid local check input")
             return
-        busy = True
+        set_busy(True)
         status.set(f"Checking {action} locally…")
         snapshot = tuple(args)
 
@@ -237,9 +255,13 @@ def main(argv: list[str] | None = None) -> int:
 
     home = panels["Overview"]
     ttk.Label(home, text="Workspace and proposal status", style="Heading.TLabel").pack(anchor="w", pady=8)
-    ttk.Button(home, text="Check local workspace", command=lambda: call("workspace", ["--checkout", checkout.get()])).pack(anchor="w", pady=6)
+    workspace_button = ttk.Button(home, text="Check local workspace", command=lambda: call("workspace", ["--checkout", checkout.get()]))
+    workspace_button.pack(anchor="w", pady=6)
+    action_buttons.append(workspace_button)
     ttk.Label(home, text="Select a tab, then run an explicit local check. No checks run automatically.").pack(anchor="w", pady=4)
-    ttk.Button(home, text="Inspect proposal progress", command=lambda: call("dashboard", ["--checkout", checkout.get(), "--proposal", proposal.get()])).pack(anchor="w", pady=6)
+    dashboard_button = ttk.Button(home, text="Inspect proposal progress", command=lambda: call("dashboard", ["--checkout", checkout.get(), "--proposal", proposal.get()]))
+    dashboard_button.pack(anchor="w", pady=6)
+    action_buttons.append(dashboard_button)
     ttk.Label(home, text="Local PASS does not confirm a remote PR or target CI.").pack(anchor="w", pady=10)
 
     files_page = panels["Files"]
@@ -285,7 +307,9 @@ def main(argv: list[str] | None = None) -> int:
         if requested_filter:
             search_args.extend(["--search", requested_filter])
         call("files", search_args, on_complete=populate)
-    ttk.Button(top, text="Search", command=refresh).pack(side="left", padx=7)
+    search_button = ttk.Button(top, text="Search", command=refresh)
+    search_button.pack(side="left", padx=7)
+    action_buttons.append(search_button)
     filter_text_entry = top.winfo_children()[0]
     filter_text_entry.bind("<Return>", lambda _event: refresh())
     ttk.Label(files_page, text="Use Ctrl/Shift to select multiple paths (maximum 12). Results contain paths only.").pack(anchor="w")
@@ -331,7 +355,9 @@ def main(argv: list[str] | None = None) -> int:
         for name in selected_paths:
             args.extend(["--allowed-file", name])
         call("prepare", args)
-    ttk.Button(preview, text="Validate and preview only", command=prepare_preview).pack(anchor="w", pady=10)
+    preview_button = ttk.Button(preview, text="Validate and preview only", command=prepare_preview)
+    preview_button.pack(anchor="w", pady=10)
+    action_buttons.append(preview_button)
     ttk.Label(preview, text="Preview only: no network, source upload or file changes.").pack(anchor="w")
     ttk.Label(preview, text="The output omits upload approval; use the reviewed CLI workflow separately.").pack(anchor="w")
 
@@ -339,7 +365,9 @@ def main(argv: list[str] | None = None) -> int:
     ttk.Label(help_panel, text="Plan → Review → Apply → Verify → Publish", style="Heading.TLabel").pack(anchor="w", pady=8)
     for label, command in (("Show safe workflow", "guide"), ("Browse commands", "commands"),
                            ("Task examples", "recipes")):
-        ttk.Button(help_panel, text=label, command=lambda c=command: call(c)).pack(anchor="w", pady=6)
+        button = ttk.Button(help_panel, text=label, command=lambda c=command: call(c))
+        button.pack(anchor="w", pady=6)
+        action_buttons.append(button)
     root.bind("<Escape>", lambda _event: root.focus_set())
     ttk.Label(frame, text="Shortcuts: Ctrl+1–4 switch tabs · Ctrl+Shift+C copies result · Enter searches files").pack(anchor="w", pady=(4, 0))
     show("Welcome. Choose an overview, search eligible files or preview a scoped plan.\nNo action has been started.")

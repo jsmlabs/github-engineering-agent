@@ -32,6 +32,10 @@ This change introduces a subprocess-backed GUI inspection path and headless regr
 
 Regression checks cover worker success and unexpected exceptions without exposing underlying error content. UI-close and selection semantics are implemented but require real interactive Tk validation; no such execution is claimed here. `0.3.0.dev5` is unpublished development metadata.
 
+## Desktop activity feedback (unreleased)
+
+A new headless status-contract test covers explicit local success and failure wording. CI is required to establish the complete regression outcome. Live Tk rendering, keyboard/focus accessibility and real GUI responsiveness require separate platform-specific validation. `0.3.0.dev6` remains unpublished development metadata.
+
 ## Recent change evidence
 
 | Scope | PR-head CI | Integrated target-branch evidence | What it establishes |
