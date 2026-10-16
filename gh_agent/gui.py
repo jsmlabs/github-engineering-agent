@@ -85,6 +85,13 @@ def inspect_process(action: str, args: list[str] | tuple[str, ...] = (), *, time
     return {"ok": True, "data": data}
 
 
+def safe_inspect_process(action: str, args: list[str] | tuple[str, ...]) -> dict:
+    """Convert unexpected worker failures to a recoverable local-only result."""
+    try:
+        return inspect_process(action, args)
+    except Exception:
+        return {"ok": False, "error": "Unexpected local inspection error; retry or use the CLI."}
+
 def selection_is_current(paths: list[str], chosen_checkout: str, checkout: str) -> bool:
     """Require a nonempty scope selected for the current resolved checkout."""
     return bool(paths) and chosen_checkout == str(Path(checkout).resolve(strict=False))
@@ -224,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = tuple(args)
 
         def worker():
-            results.put((action, inspect_process(action, snapshot), on_complete))
+            results.put((action, safe_inspect_process(action, snapshot), on_complete))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -251,11 +258,11 @@ def main(argv: list[str] | None = None) -> int:
     counter.pack(anchor="w", pady=5)
     def refresh():
         nonlocal selected_checkout
-        selected_paths.clear()
-        selected_checkout = ""
         if busy:
             status.set("A local check is already running")
             return
+        selected_paths.clear()
+        selected_checkout = ""
         items.delete(0, "end")
         counter.configure(text="Searching…")
         requested_checkout = checkout.get()
@@ -336,6 +343,13 @@ def main(argv: list[str] | None = None) -> int:
     root.bind("<Escape>", lambda _event: root.focus_set())
     ttk.Label(frame, text="Shortcuts: Ctrl+1–4 switch tabs · Ctrl+Shift+C copies result · Enter searches files").pack(anchor="w", pady=(4, 0))
     show("Welcome. Choose an overview, search eligible files or preview a scoped plan.\nNo action has been started.")
+    def close():
+        if busy:
+            messagebox.showwarning("Local check running", "Complete the current local check before closing.")
+            return
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", close)
     root.after(100, poll_results)
     root.mainloop()
     return 0
