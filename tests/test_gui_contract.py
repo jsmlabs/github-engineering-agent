@@ -11,6 +11,13 @@ class GuiContractTests(unittest.TestCase):
         self.assertEqual(gui.inspection_status("workspace", True), "workspace: complete · local only")
         self.assertEqual(gui.inspection_status("workspace", False), "workspace: failed · local only")
 
+    def test_file_search_navigation_selects_tab_and_focuses_entry(self):
+        from unittest.mock import Mock
+        tabs, page, entry = Mock(), object(), Mock()
+        gui.focus_file_search(tabs, page, entry)
+        tabs.select.assert_called_once_with(page)
+        entry.focus_set.assert_called_once_with()
+
     def test_known_actions_are_all_configured(self):
         self.assertEqual(set(gui.OPTIONS), set(gui.READ_ONLY))
 

@@ -36,6 +36,10 @@ Regression checks cover worker success and unexpected exceptions without exposin
 
 A new headless status-contract test covers explicit local success and failure wording. CI is required to establish the complete regression outcome. Live Tk rendering, keyboard/focus accessibility and real GUI responsiveness require separate platform-specific validation. `0.3.0.dev6` remains unpublished development metadata.
 
+## GUI keyboard-navigation update (unreleased)
+
+Headless focus-contract checks cover the file-search keyboard helper; real keyboard operation and assistive-technology behavior remain unverified without a desktop display. `0.3.0.dev7` is not a published release.
+
 ## Recent change evidence
 
 | Scope | PR-head CI | Integrated target-branch evidence | What it establishes |

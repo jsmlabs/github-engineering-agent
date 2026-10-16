@@ -92,6 +92,12 @@ def safe_inspect_process(action: str, args: list[str] | tuple[str, ...]) -> dict
     except Exception:
         return {"ok": False, "error": "Unexpected local inspection error; retry or use the CLI."}
 
+def focus_file_search(tabs, page, entry) -> None:
+    """Navigate to file discovery and focus its search input."""
+    tabs.select(page)
+    entry.focus_set()
+
+
 def inspection_status(action: str, ok: bool) -> str:
     """Local completion is not remote verification."""
     return f"{action}: {'complete' if ok else 'failed'} · local only"
@@ -312,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
     action_buttons.append(search_button)
     filter_text_entry = top.winfo_children()[0]
     filter_text_entry.bind("<Return>", lambda _event: refresh())
+    root.bind("<Control-f>", lambda _event: focus_file_search(tabs, panels["Files"], filter_text_entry))
+    root.bind("<F5>", lambda _event: refresh() if tabs.select() == str(panels["Files"]) else None)
     ttk.Label(files_page, text="Use Ctrl/Shift to select multiple paths (maximum 12). Results contain paths only.").pack(anchor="w")
     def select():
         paths = [items.get(i) for i in items.curselection()]
@@ -369,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
         button.pack(anchor="w", pady=6)
         action_buttons.append(button)
     root.bind("<Escape>", lambda _event: root.focus_set())
-    ttk.Label(frame, text="Shortcuts: Ctrl+1–4 switch tabs · Ctrl+Shift+C copies result · Enter searches files").pack(anchor="w", pady=(4, 0))
+    ttk.Label(frame, text="Shortcuts: Ctrl+1–4 tabs · Ctrl+F file search · F5 refresh files · Ctrl+Shift+C copy · Enter search").pack(anchor="w", pady=(4, 0))
     show("Welcome. Choose an overview, search eligible files or preview a scoped plan.\nNo action has been started.")
     def close():
         if busy:

@@ -2,9 +2,15 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev6** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev7** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Keyboard-first desktop navigation
+
+- Add Ctrl+F to focus file search and F5 to refresh the active Files tab; update the shortcut legend and cover focus behavior with a headless test.
+- Advance unpublished development metadata to **0.3.0.dev7**; no release or authority changes.
+
 
 ### Local desktop activity feedback
 
