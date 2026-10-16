@@ -146,6 +146,9 @@ def run_checked(args: list[str], *, capture: bool = False) -> str:
 def verify_slot(slot: Path, expected_version: str) -> None:
     if (slot / ".slot-managed").read_text(encoding="utf-8") != SLOT_MARKER:
         raise ValueError("Release slot marker is invalid")
+    environment_dir = slot / "venv"
+    if slot.is_symlink() or environment_dir.is_symlink():
+        raise ValueError("Symlinked release environment is not allowed")
     python = python_in(slot)
     if not python.is_file():
         raise ValueError("Release environment is missing")
@@ -176,7 +179,10 @@ def install(target: Path, wheel: Path, digest: str) -> str:
 
 
 def _install_locked(target: Path, wheel: Path, digest: str, version: str, state: dict) -> str:
-    slot = target / "releases" / digest
+    releases = target / "releases"
+    if releases.is_symlink():
+        raise ValueError("Symlinked release directory is not allowed")
+    slot = releases / digest
     if slot.exists():
         if (not slot.is_dir() or slot.is_symlink()
                 or not (slot / ".slot-managed").is_file()
