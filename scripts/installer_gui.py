@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from setup_check import snapshot as setup_snapshot
-from installer import default_target, install, rollback, status as install_status, uninstall, verify
+from installer import default_target, install, preview, rollback, status as install_status, uninstall, verify
 
 
 def main() -> None:
@@ -42,7 +42,7 @@ def main() -> None:
     ttk.Label(frame, text="MAINTENANCE ACTIONS", font=("TkDefaultFont", 10, "bold")).pack(anchor="w", pady=(10, 4))
     actions = ttk.Frame(frame)
     actions.pack(fill="x", pady=(0, 8))
-    for column in range(4):
+    for column in range(3):
         actions.columnconfigure(column, weight=1)
     buttons = []
     results: Queue[tuple[str, str]] = Queue()
@@ -75,7 +75,7 @@ def main() -> None:
     def execute(action):
         if busy:
             return
-        if action in ("install", "update", "repair") and (not wheel.get().strip() or len(digest.get().strip()) != 64):
+        if action in ("preview", "install", "update", "repair") and (not wheel.get().strip() or len(digest.get().strip()) != 64):
             messagebox.showwarning("Missing release input", "Select a trusted wheel and provide its 64-character SHA-256 checksum.")
             return
         if action == "rollback" and not messagebox.askyesno("Rollback", "Restore the previously verified release?"):
@@ -94,6 +94,8 @@ def main() -> None:
             try:
                 if action in ("install", "update", "repair"):
                     result = install(*snapshot)
+                elif action == "preview":
+                    result = preview(*snapshot)
                 elif action == "verify":
                     result = verify(snapshot[0])
                 elif action == "status":
@@ -112,12 +114,13 @@ def main() -> None:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    for index, (title, action) in enumerate((("1 · Environment", "setup"), ("2 · Install", "install"),
-                          ("3 · Update", "update"), ("4 · Repair", "repair"),
-                          ("5 · Status", "status"), ("6 · Verify", "verify"),
-                          ("7 · Rollback", "rollback"), ("8 · Uninstall", "uninstall"))):
+    for index, (title, action) in enumerate((("1 · Environment", "setup"), ("2 · Preview", "preview"),
+                          ("3 · Install", "install"), ("4 · Update", "update"),
+                          ("5 · Repair", "repair"), ("6 · Status", "status"),
+                          ("7 · Verify", "verify"), ("8 · Rollback", "rollback"),
+                          ("9 · Uninstall", "uninstall"))):
         button = ttk.Button(actions, text=title, command=lambda action=action: execute(action))
-        button.grid(row=index // 4, column=index % 4, sticky="ew", padx=(0, 7), pady=4)
+        button.grid(row=index // 3, column=index % 3, sticky="ew", padx=(0, 7), pady=4)
         buttons.append(button)
 
     ttk.Separator(frame).pack(fill="x", pady=(10, 8))
