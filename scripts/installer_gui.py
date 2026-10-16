@@ -1,9 +1,9 @@
 """Optional Tk desktop for the offline, user-scoped installer."""
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 import threading
+from queue import Empty, Queue
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -41,6 +41,18 @@ def main() -> None:
     actions = ttk.Frame(frame)
     actions.pack(fill="x", pady=14)
     buttons = []
+    results: Queue[tuple[str, str]] = Queue()
+
+    def poll_results():
+        try:
+            kind, message = results.get_nowait()
+        except Empty:
+            pass
+        else:
+            status.set(message)
+            set_busy(False)
+        root.after(100, poll_results)
+
 
     def set_busy(busy):
         for button in buttons:
@@ -65,12 +77,11 @@ def main() -> None:
                     result = verify(snapshot[0])
                 else:
                     result = uninstall(snapshot[0], confirm)
-                root.after(0, lambda: status.set(result))
+                results.put(("ok", result))
             except Exception as exc:
                 msg = f"{type(exc).__name__}: {exc}"
-                root.after(0, lambda: status.set(msg))
-            finally:
-                root.after(0, lambda: set_busy(False))
+                results.put(("error", msg))
+
         threading.Thread(target=worker, daemon=True).start()
 
     for title, action in (("Install", "install"), ("Update / Repair", "repair"),
@@ -83,6 +94,7 @@ def main() -> None:
     ttk.Label(frame, text="Status", font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
     ttk.Label(frame, textvariable=status, wraplength=660).pack(anchor="w", fill="x", pady=(6, 0))
     ttk.Label(frame, text="No GitHub/OpenAI tokens are requested or stored. Application configuration is not modified.").pack(anchor="w", pady=(20, 0))
+    root.after(100, poll_results)
     root.mainloop()
 
 
