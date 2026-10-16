@@ -254,7 +254,9 @@ def uninstall(target: Path, confirmation: str) -> str:
         raise ValueError("Explicit UNINSTALL confirmation is required")
     require_managed(target)
     with operation_lock(target):
-        return _uninstall_locked(target)
+        message = _uninstall_locked(target)
+    target.rmdir()
+    return message
 
 
 def _uninstall_locked(target: Path) -> str:
@@ -279,7 +281,7 @@ def _uninstall_locked(target: Path) -> str:
             shutil.rmtree(entry)
         else:
             entry.unlink()
-    return "Managed environments removed; empty installation directory retained"
+    return "Managed environments removed; external workspace and credentials unchanged"
 
 
 def main(argv: list[str] | None = None) -> int:
