@@ -253,6 +253,9 @@ def main(argv: list[str] | None = None) -> int:
         nonlocal selected_checkout
         selected_paths.clear()
         selected_checkout = ""
+        if busy:
+            status.set("A local check is already running")
+            return
         items.delete(0, "end")
         counter.configure(text="Searching…")
         requested_checkout = checkout.get()
@@ -271,8 +274,10 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 counter.configure(text="Search failed · no files selected")
 
-        call("files", ["--checkout", requested_checkout, "--search", requested_filter, "--limit", "50"],
-             on_complete=populate)
+        search_args = ["--checkout", requested_checkout, "--limit", "50"]
+        if requested_filter:
+            search_args.extend(["--search", requested_filter])
+        call("files", search_args, on_complete=populate)
     ttk.Button(top, text="Search", command=refresh).pack(side="left", padx=7)
     filter_text_entry = top.winfo_children()[0]
     filter_text_entry.bind("<Return>", lambda _event: refresh())
