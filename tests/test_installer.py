@@ -92,6 +92,32 @@ class InstallerTests(unittest.TestCase):
                     {"schema": 1, "active": None, "previous": None, "versions": {}})
             self.assertTrue((slot / "unexpected.txt").exists())
 
+    def test_symlinked_state_refused(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            root = Path(d)
+            target = root / "managed"
+            target.mkdir()
+            (target / ".gh-engineer-managed").write_text(installer.MARKER)
+            external = root / "external.json"
+            external.write_text("{}")
+            try:
+                (target / "state.json").symlink_to(external)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unavailable")
+            with self.assertRaisesRegex(ValueError, "Symlinked installation state"):
+                installer.read_state(target)
+
+    def test_lock_state_read_after_acquisition(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d) / "managed"
+            target.mkdir()
+            (target / ".gh-engineer-managed").write_text(installer.MARKER)
+            with installer.operation_lock(target):
+                with self.assertRaisesRegex(ValueError, "Another installation"):
+                    with installer.operation_lock(target):
+                        pass
+            self.assertEqual(installer.read_state(target)["versions"], {})
+
     def test_initial_state_and_no_rollback(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "installed"
