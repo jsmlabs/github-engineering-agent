@@ -91,7 +91,9 @@ class AgentTest(unittest.TestCase):
 
     def test_gui_help_requires_no_display_or_tk(self):
         with redirect_stdout(StringIO()) as out:
-            self.assertEqual(cli.main(["gui", "--help"]), 0)
+            with self.assertRaises(SystemExit) as finished:
+                cli.main(["gui", "--help"])
+        self.assertEqual(finished.exception.code, 0)
         self.assertIn("--checkout", out.getvalue())
         self.assertIn("--proposal", out.getvalue())
 
