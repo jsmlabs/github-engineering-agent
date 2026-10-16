@@ -80,7 +80,7 @@ class AgentTest(unittest.TestCase):
 
         private_json_write(self.planfile, self.proposal())
         before = self.planfile.read_bytes()
-        terminal_in = FakeTTY("9\n1\n2\n3\n" + str(self.planfile) + "\n4\n\n5\n0\n")
+        terminal_in = FakeTTY("99\n1\n2\n3\n" + str(self.planfile) + "\n4\n\n5\n0\n")
         terminal_out = FakeTTY()
         with (patch.object(cli.sys, "stdin", terminal_in),
               patch.object(cli.sys, "stdout", terminal_out),
@@ -127,7 +127,7 @@ class AgentTest(unittest.TestCase):
               patch.object(cli.sys, "stdout", FakeTTY()) as out):
             self.assertEqual(cli.main(["menu"]), 0)
         self.assertIn("Menu closed", out.getvalue())
-        with (patch.object(cli.sys, "stdin", FakeTTY("9\n" * 42)),
+        with (patch.object(cli.sys, "stdin", FakeTTY("99\n" * 42)),
               patch.object(cli.sys, "stdout", FakeTTY()) as out):
             self.assertEqual(cli.main(["menu"]), 0)
         self.assertIn("session limit reached", out.getvalue())
