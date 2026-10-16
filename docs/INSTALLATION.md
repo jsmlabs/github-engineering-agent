@@ -29,7 +29,7 @@ python scripts/installer.py uninstall --confirm UNINSTALL
 python scripts/installer_gui.py
 ```
 
-For a custom install location, provide `--target /path/under/user/home`. Uninstall refuses any unknown top-level entries. It removes the managed virtual environment, so keep personal files elsewhere.
+For a custom install location, provide `--target /path/under/user/home`. Uninstall refuses any unknown top-level entries. Install/repair also reject symlinked ownership markers and unexpected release-slot entries, preserving unrelated files. It removes the managed virtual environment, so keep personal files elsewhere.
 
 ## Known limitations
 - The installer is an **offline preview**, not a completed one-click distribution package.
