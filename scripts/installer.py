@@ -200,7 +200,7 @@ def preview(target: Path, wheel: Path, digest: str) -> str:
 
 
 
-def install(target: Path, wheel: Path, digest: str) -> str:
+def install(target: Path, wheel: Path, digest: str, *, repair: bool = False) -> str:
     target = validate_target(target)
     wheel, digest, version = validate_wheel(wheel, digest)
     marker = target / ".gh-engineer-managed"
@@ -214,10 +214,12 @@ def install(target: Path, wheel: Path, digest: str) -> str:
             target.rmdir()
             raise
     with operation_lock(target):
-        return _install_locked(target, wheel, digest, version, read_state(target))
+        return _install_locked(target, wheel, digest, version, read_state(target), repair=repair)
 
 
-def _install_locked(target: Path, wheel: Path, digest: str, version: str, state: dict) -> str:
+def _install_locked(target: Path, wheel: Path, digest: str, version: str, state: dict, *, repair: bool = False) -> str:
+    if repair and state["active"] != digest:
+        raise ValueError("Repair requires the exact wheel for the active version")
     releases = target / "releases"
     if releases.is_symlink():
         raise ValueError("Symlinked release directory is not allowed")
@@ -236,12 +238,13 @@ def _install_locked(target: Path, wheel: Path, digest: str, version: str, state:
     if digest in state["versions"]:
         if state["versions"][digest] != version:
             raise ValueError("Existing wheel digest has conflicting version metadata")
-        verify_slot(slot, version)
-        if state["active"] != digest:
-            state["previous"] = state["active"]
-            state["active"] = digest
-            write_state(target, state)
-        return f"Existing version {version} verified; no reinstall performed"
+        if not repair:
+            verify_slot(slot, version)
+            if state["active"] != digest:
+                state["previous"] = state["active"]
+                state["active"] = digest
+                write_state(target, state)
+            return f"Existing version {version} verified; no reinstall performed"
     if not python.is_file():
         venv.EnvBuilder(with_pip=True).create(slot / "venv")
     # Install from an isolated copy rather than a user-editable source path.
@@ -371,7 +374,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.wheel is None:
                 raise ValueError("--wheel and --sha256 are required")
             result = (preview(args.target, args.wheel, args.sha256) if args.action == "preview"
-                      else install(args.target, args.wheel, args.sha256))
+                      else install(args.target, args.wheel, args.sha256,
+                                   repair=args.action == "repair"))
         elif args.action == "verify":
             result = verify(args.target)
         elif args.action == "rollback":
