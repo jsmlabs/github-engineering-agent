@@ -22,7 +22,7 @@
 
 | Operation | Required authorization | Maximum intended effect |
 | --- | --- | --- |
-| `menu`, `commands`, `dashboard`, `guide`, `doctor`, `next` | No permission grants | Local navigation, command discovery or validated local state checks; never model or remote writes |
+| `menu`, `commands`, `dashboard`, `workspace`, `prepare`, `guide`, `doctor`, `next` | No permission grants | Local navigation, command discovery or validated local state checks; never model or remote writes |
 | `plan` | `--allow-source-upload` and 1–12 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
 | `review` | None | Print full proposed diff/digest, **no modification** |
 | `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
@@ -30,6 +30,8 @@
 | `status` | None | Inspect local state; `--remote` adds read-only remote lookups |
 | `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open PR (draft by default)** |
 | `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
+
+New `workspace` reports only local Git state and the presence (not values) of credentials. `prepare` uses the existing exact repository identity and path checks to print a proposal argv preview; it neither contacts GitHub/OpenAI nor writes files, and it never adds `--allow-source-upload`. The preview is not a shell command and is not authorization to upload source. Interactive menu input also cannot start `plan`, `apply`, `publish` or `run`.
 
 The `dashboard` checks the recorded proposal, local commit and committed file bytes before showing a progress state. It labels known failed/invalid test reports as `BLOCKED` and never infers remote publication or target CI from local files. Its JSON output is a local evidence snapshot, not an authorization token; callers must independently check the stage and cannot use it to bypass `publish`.
 
