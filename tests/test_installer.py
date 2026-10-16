@@ -46,6 +46,25 @@ class InstallerTests(unittest.TestCase):
                 installer.uninstall(target, "UNINSTALL")
             self.assertTrue((target / "keep.txt").exists())
 
+    def test_operation_lock_prevents_concurrent_mutation(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d)
+            with installer.operation_lock(target):
+                with self.assertRaisesRegex(ValueError, "Another installation"):
+                    with installer.operation_lock(target):
+                        pass
+            self.assertFalse((target / ".installer.lock").exists())
+
+    def test_symlink_installation_target_refused(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d) / "link"
+            try:
+                target.symlink_to(Path(d), target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink creation unavailable")
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                installer.validate_target(target)
+
     def test_initial_state_and_no_rollback(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "installed"
