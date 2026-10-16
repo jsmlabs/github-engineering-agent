@@ -171,7 +171,7 @@ def verify_slot(slot: Path, expected_version: str) -> None:
         raise ValueError("Release environment is missing")
     run_checked([str(python), "-m", "gh_agent", "--help"], cwd=slot)
     actual = run_checked([str(python), "-c",
-        "from importlib.metadata import version; print(version('github-engineering-agent'))"], capture=True)
+        "from importlib.metadata import version; print(version('github-engineering-agent'))"], capture=True, cwd=slot)
     if actual != expected_version:
         raise ValueError("Installed version does not match expected release")
 
