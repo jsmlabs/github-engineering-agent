@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Scoped file discovery and task recipes
+
+- Add `gh-engineer files` to search eligible tracked file paths locally, with bounded result counts (1-50), name filtering and JSON output; protect excluded paths and never read selected contents or approve their upload.
+- Add `gh-engineer recipes` with fixed, topic-filtered workflow examples for onboarding, scope selection, review, verification, publishing and recovery; examples are never executed.
+- Extend the interactive menu with Files and Recipes (choices 0-10), five regression tests and offline CLI smoke checks. Preserve existing consent boundaries and zero additional runtime dependencies.
+
 ### Workspace awareness and approval-safe plan preparation
 
 - Add `workspace` with human-readable and JSON local Git readiness, clean/dirty reporting, optional origin identity verification, and credential-presence checks without revealing secret values or contacting a provider.

@@ -468,12 +468,104 @@ def prepare(args) -> None:
     print("The actual plan still independently validates Git state, scope and remote identity.")
 
 
+
+RECIPES = (
+    ("start", "Get oriented safely", (
+        "gh-engineer",
+        "gh-engineer workspace",
+        "gh-engineer doctor --repo OWNER/REPO",
+        "gh-engineer menu",
+    )),
+    ("scope", "Find existing eligible files and preview a scoped request", (
+        "gh-engineer files --search app --limit 20",
+        "gh-engineer prepare --repo OWNER/REPO --issue 123 --model MODEL --allowed-file src/app.py --output ../issue-123.json",
+        "gh-engineer plan --help",
+    )),
+    ("review", "Review the model proposal before local changes", (
+        "gh-engineer review --proposal ../issue-123.json",
+        "gh-engineer apply --proposal ../issue-123.json --expected-sha256 REVIEWED_SHA256 --approve",
+    )),
+    ("verify", "Check local progress and learn about isolated tests", (
+        "gh-engineer dashboard --proposal ../issue-123.json",
+        "gh-engineer verify --help",
+    )),
+    ("publish", "Inspect state before explicit remote PR publication", (
+        "gh-engineer status --proposal ../issue-123.json --remote",
+        "gh-engineer publish --proposal ../issue-123.json --approve-publish",
+    )),
+    ("recover", "Inspect saved local or remote state without modifying it", (
+        "gh-engineer next --proposal ../issue-123.json",
+        "gh-engineer dashboard --proposal ../issue-123.json --json",
+        "gh-engineer status --proposal ../issue-123.json --remote",
+    )),
+)
+
+
+def recipes(args) -> None:
+    """Static, read-only task recipes. Never execute suggested commands."""
+    topic = getattr(args, "topic", "all")
+    selected = [
+        {"topic": name, "description": description, "steps": list(steps)}
+        for name, description, steps in RECIPES if topic == "all" or topic == name
+    ]
+    if getattr(args, "json", False):
+        print(json.dumps({"schema": 1, "executed": False, "recipes": selected},
+                         ensure_ascii=True))
+        return
+    print("TASK RECIPES (examples only; NOTHING executed)")
+    for item in selected:
+        print(f"{item['topic'].upper()}: {item['description']}")
+        for number, command in enumerate(item["steps"], 1):
+            print(f"  {number}. {command}")
+    print("Placeholders must be replaced with your own values.")
+    print("Plan, apply and publish STILL require their explicit permissions.")
+
+
+def files(args) -> None:
+    """List only tracked files already eligible for selection; never read contents."""
+    query = getattr(args, "search", "") or ""
+    if (not isinstance(query, str) or len(query) > 80
+            or any(ord(c) < 32 or ord(c) == 127 for c in query)):
+        raise AgentError("File search must be <=80 printable characters")
+    limit = getattr(args, "limit", 20)
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise AgentError("File list limit must be between 1 and 50")
+    checkout = Path(args.checkout).resolve(strict=True)
+    root = Path(run_git(checkout, "rev-parse", "--show-toplevel")).resolve(strict=True)
+    if root != checkout:
+        raise AgentError("File search requires the Git worktree root")
+    if getattr(args, "repo", None):
+        assert_checkout(checkout, require_repo(args.repo), "", require_base=False)
+    candidates = sorted(set(tracked_sources(checkout)))
+    matches = [path for path in candidates if query.casefold() in path.casefold()]
+    result = {
+        "schema": 1, "files": matches[:limit], "matching_count": len(matches),
+        "shown": min(len(matches), limit), "truncated": len(matches) > limit,
+        "selection_limit": MAX_FILES, "source_uploaded": False,
+        "network_checked": False,
+    }
+    if getattr(args, "json", False):
+        print(json.dumps(result, ensure_ascii=True))
+        return
+    print("ELIGIBLE TRACKED FILES (paths only, no contents)")
+    for path in result["files"]:
+        print(f"  --allowed-file {path}")
+    print(f"Showing {result['shown']} of {len(matches)} matches"
+          + (" (refine --search to see more)" if result["truncated"] else ""))
+    if not matches:
+        print("No matching tracked files. New files can still be explicitly scoped in 'prepare'.")
+    print(f"Select at most {MAX_FILES} exact paths, and inspect contents before authorizing upload.")
+    print("This list is not proof that source is free of secrets; no upload was performed.")
+
+
 COMMANDS = (
     ("menu", "Explore read-only terminal navigation", "start", "local"),
     ("guide", "See the reviewed five-step workflow", "start", "local"),
     ("doctor", "Check workstation and Git checkout locally", "start", "local"),
     ("workspace", "Inspect current Git checkout readiness and credential presence", "start", "local"),
     ("prepare", "Validate and preview a scoped plan without uploading", "start", "local"),
+    ("files", "Find eligible tracked file paths for exact scope selection", "start", "local"),
+    ("recipes", "Browse copyable task examples, never run commands", "start", "local"),
     ("commands", "Browse and search all supported commands", "start", "local"),
     ("dashboard", "Inspect proposal progress and verification locally", "inspect", "local"),
     ("next", "Find the next safe step from proposal state", "inspect", "local"),
@@ -642,17 +734,19 @@ def menu(args) -> None:
         print("  6  Dashboard       Validated proposal progress")
         print("  7  Workspace       Git state and readiness")
         print("  8  Prepare         Guided plan preview (never executes)")
+        print("  9  Files           Search exact eligible tracked paths")
+        print(" 10  Recipes         Task examples and safe workflow tips")
         print("  0  Exit")
         try:
-            choice = input("Choose [0-8]: ").strip().lower()
+            choice = input("Choose [0-10]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nMenu closed. No action was started.")
             return
         if choice in {"0", "q", "quit", "exit"}:
             print("Menu closed. No action was started.")
             return
-        if choice not in {"1", "2", "3", "4", "5", "6", "7", "8"}:
-            print("Unknown option. Enter a number from 0 to 8.")
+        if choice not in {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}:
+            print("Unknown option. Enter a number from 0 to 10.")
             continue
         try:
             if choice == "1":
@@ -680,16 +774,22 @@ def menu(args) -> None:
             elif choice == "7":
                 workspace(SimpleNamespace(checkout=checkout, repo=getattr(args, "repo", None),
                                           json=False))
+            elif choice == "9":
+                query = input("File path search (Enter for all): ").strip()
+                files(SimpleNamespace(checkout=checkout, repo=getattr(args, "repo", None),
+                                      search=query, limit=20, json=False))
+            elif choice == "10":
+                recipes(SimpleNamespace(topic="all", json=False))
             else:
                 repo = getattr(args, "repo", None) or input("Repository OWNER/REPO: ").strip()
                 issue_text = input("Issue number: ").strip()
                 model = input("Model identifier: ").strip()
-                files = input("Allowed paths (space-separated, no globs): ").split()
+                scope_files = input("Allowed paths (space-separated, no globs): ").split()
                 output = input("Proposal JSON destination (outside checkout): ").strip()
                 if not issue_text.isdecimal() or len(issue_text) > 12:
                     raise AgentError("Issue must contain 1-12 decimal digits")
                 prepare(SimpleNamespace(checkout=checkout, repo=repo, issue=int(issue_text),
-                                        model=model, allowed_file=files, output=output,
+                                        model=model, allowed_file=scope_files, output=output,
                                         json=False))
         except (AgentError, FileNotFoundError, PermissionError) as exc:
             print("CHECK STOPPED:", str(exc))
@@ -710,6 +810,8 @@ def overview(args=None) -> None:
     print("  gh-engineer doctor                 Check this workstation and checkout")
     print("  gh-engineer workspace              View local Git readiness")
     print("  gh-engineer prepare --help         Preview a scoped plan without uploading")
+    print("  gh-engineer files --search app     Find exact eligible tracked paths")
+    print("  gh-engineer recipes                See examples for common tasks")
     print("  gh-engineer commands               Browse tasks and permission levels")
     print("  gh-engineer plan --help            Start from an approved GitHub issue")
     print()
@@ -860,6 +962,18 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", required=True, help="Nonexistent JSON path outside checkout")
     p.add_argument("--json", action="store_true", help="Emit JSON argv with no approval flag")
     p.set_defaults(func=prepare)
+    p = sub.add_parser("files", help="Find eligible tracked file paths (no file content read)")
+    p.add_argument("--checkout", default=".", help="Target checkout root")
+    p.add_argument("--repo", help="Optional OWNER/REPO: check exact origin on clean checkout")
+    p.add_argument("--search", default="", help="Case-insensitive path substring, up to 80 characters")
+    p.add_argument("--limit", type=int, default=20, help="Maximum paths to display (1-50)")
+    p.add_argument("--json", action="store_true", help="Machine-readable path list")
+    p.set_defaults(func=files)
+    p = sub.add_parser("recipes", help="Browse task examples; never run commands")
+    p.add_argument("--topic", choices=("all", "start", "scope", "review", "verify",
+                                        "publish", "recover"), default="all")
+    p.add_argument("--json", action="store_true", help="Machine-readable example steps")
+    p.set_defaults(func=recipes)
     p = sub.add_parser("guide", help="Show the recommended five-step workflow with examples")
     p.set_defaults(func=guide)
     p = sub.add_parser("doctor", help="Check Python, Git and checkout without network or mutations")

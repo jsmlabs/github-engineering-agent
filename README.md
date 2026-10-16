@@ -28,6 +28,8 @@ Install once from **this agent repository** using `python -m pip install .`. The
 gh-engineer
 gh-engineer menu
 gh-engineer workspace
+gh-engineer files --search app
+gh-engineer recipes
 gh-engineer commands
 gh-engineer guide
 gh-engineer doctor --repo OWNER/REPO
@@ -38,6 +40,8 @@ gh-engineer doctor --repo OWNER/REPO
 | `gh-engineer` | Show the short home screen | None |
 | `gh-engineer menu` | Numbered terminal menu for local checks, workflow guidance and status | Only local, read-only inspection; never runs a model or publishes |
 | `gh-engineer workspace --json` | Check branch, clean worktree, credential presence and Docker CLI without contacting any service | Local read-only inspection; no credential values printed |
+| `gh-engineer files --search app --limit 20` | Show eligible existing tracked paths for exact `--allowed-file` selection | No file contents or provider requests |
+| `gh-engineer recipes --topic scope` | Show copyable task examples with approval warnings | No commands are executed |
 | `gh-engineer prepare --help` | Validate scope and preview a future `plan` argument array, without executing it | No model call, file write or upload approval |
 | `gh-engineer commands --group inspect` | Browse/search commands with their side-effect labels; `--json` for scripts | None |
 | `gh-engineer dashboard --proposal ../issue-123.json` | Inspect validated local progress with blocked/stale-state detection; `--json` for scripts | Local read-only inspection; remote publication is never assumed |
@@ -46,7 +50,18 @@ gh-engineer doctor --repo OWNER/REPO
 | `gh-engineer next --proposal ../issue-123.json` | Suggest a safe next step from exact local proposal/receipt/verification state | Read-only; does not run the step |
 | `gh-engineer status --proposal ../issue-123.json` | Examine the recorded local state | Read-only; `--remote` adds GitHub lookups |
 
-**Interactive menu:** run `gh-engineer menu` in a regular terminal, choose a number from 0–8, and optionally provide a proposal JSON path. Choices include Guide, Doctor, Next step, Local status, Commands and a validated Proposal Dashboard. Choose **Workspace** for the Git preflight summary, or **Prepare** to enter an explicitly scoped plan preview interactively. The preview returns JSON arguments, **not a shell command**; only a subsequent separately approved `plan --allow-source-upload` can send source data. The menu remembers the previous path only until exit; `0` or `q` quits. Use `gh-engineer menu --no-color` or set `NO_COLOR` for plain text. If standard input/output is not a terminal (CI, piping or automation), use `gh-engineer guide` or the individual commands instead. No extra package or curses dependency is required. Use `gh-engineer commands --search approval` or `--group work` to find an action; use `gh-engineer dashboard --proposal ../issue-123.json --json` for stable machine-readable stage data. `VERIFIED_LOCAL` means only that the saved commit-bound test report passed; an actual remote PR and its CI are **not** confirmed. `BLOCKED` means a recorded test failure or invalid report cannot be treated as a publishing pass.
+**Interactive menu:** run `gh-engineer menu` in a regular terminal, choose a number from 0–10, and optionally provide a proposal JSON path. Choices include Guide, Doctor, Next step, Local status, Commands and a validated Proposal Dashboard. Choose **Workspace** for the Git preflight summary, **Prepare** to enter an explicitly scoped plan preview, **Files** to search eligible tracked paths or **Recipes** for examples. The file finder shows at most 50 paths per request and never reads their contents. Protected, unsupported and untracked paths are excluded. New files must be scoped explicitly in `prepare`; appearing in the file finder does not prove that uploading a file is safe. The preview returns JSON arguments, **not a shell command**; only a subsequent separately approved `plan --allow-source-upload` can send source data. The menu remembers the previous path only until exit; `0` or `q` quits. Use `gh-engineer menu --no-color` or set `NO_COLOR` for plain text. If standard input/output is not a terminal (CI, piping or automation), use `gh-engineer guide` or the individual commands instead. No extra package or curses dependency is required. Use `gh-engineer commands --search approval` or `--group work` to find an action; use `gh-engineer dashboard --proposal ../issue-123.json --json` for stable machine-readable stage data. `VERIFIED_LOCAL` means only that the saved commit-bound test report passed; an actual remote PR and its CI are **not** confirmed. `BLOCKED` means a recorded test failure or invalid report cannot be treated as a publishing pass.
+
+Find exact file paths and browse recipes without revealing file contents:
+
+~~~bash
+gh-engineer files --search src --limit 20
+gh-engineer files --json
+gh-engineer recipes --topic scope
+gh-engineer recipes --json
+~~~
+
+The file finder uses the same local tracked-path eligibility checks as the agent, but does not assess all secrets or the suitability of sending content to a provider. Its output is a discovery aid, never an upload approval. `--repo OWNER/REPO` additionally checks the local checkout origin and requires a clean worktree.
 
 Example preview (does not contact GitHub/OpenAI or create a proposal):
 
@@ -220,7 +235,7 @@ Without both test options, `run` requires an explicit `--approve-unverified` and
 
 | Command | What happens | Explicit control |
 | --- | --- | --- |
-| `menu`, `commands`, `dashboard`, `workspace`, `prepare`, `guide`, `doctor`, `next` | Menu, catalog, local dashboard, workspace readiness, scoped plan preview and guidance | No automatic edits, provider calls or publication |
+| `menu`, `files`, `recipes`, `commands`, `dashboard`, `workspace`, `prepare`, `guide`, `doctor`, `next` | Menu, catalog, local dashboard, workspace readiness, scoped plan preview and guidance | No automatic edits, provider calls or publication |
 | `plan` | Read one issue/allowed source; save private proposal | `--repo`, `--issue`, `--checkout`, `--model`, repeatable `--allowed-file`, `--output`, `--allow-source-upload` |
 | `review` | Display full diff + proposal digest; no mutation | `--checkout`, `--proposal` |
 | `apply` | Local branch, commit and receipt | `--checkout`, `--proposal`, `--approve`, `--expected-sha256` |
