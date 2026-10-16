@@ -5,6 +5,10 @@
 > [!WARNING]
 > **Reference software, not a security certification.** The agent may upload selected source code to a model provider and push a draft or review-ready PR to GitHub. A **pull request is a real remote change**: its source is visible to repository readers and its creation may trigger CI or third-party automation. Operate only with explicit authorization, least-privilege credentials, and independent review.
 
+## Installer security scope
+
+The optional installation manager accepts only a user-provided local wheel and independently provided SHA-256. It installs into a dedicated user-level virtual environment, never requests secrets or privilege elevation, and refuses unmanaged installation paths and unknown top-level files on removal. **A matching SHA-256 does not authenticate the publisher.** The manager currently does not provide atomic installation, signed release provenance, automatic trusted update discovery, or rollback; treat it as a preview and audit wheel origin before execution. See [installation guidance](docs/INSTALLATION.md).
+
 ## Security at a glance
 
 **The model proposes data; trusted code enforces permissions.** GitHub issues, repository files, API responses and model output are untrusted inputs. No prompt can expand the operator's file allowlist, grant a new capability, approve a commit, or bypass publication gates.
