@@ -186,6 +186,23 @@ class InstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Interrupted"):
                 installer.write_state(target, state)
 
+    def test_launch_does_not_limit_interactive_session_to_240_seconds(self):
+        digest = "a" * 64
+        target = Path.home() / "test-agent-launch"
+        state = {"schema": 1, "active": digest, "previous": None,
+                 "versions": {digest: "0.3.0.dev0"}}
+        with patch.object(installer, "read_state", return_value=state), \
+                patch.object(installer, "verify_slot") as verify_release, \
+                patch.object(installer.subprocess, "run") as run:
+            result = installer.launch(target, ["--", "gui"])
+        slot = target / "releases" / digest
+        verify_release.assert_called_once_with(slot, "0.3.0.dev0")
+        run.assert_called_once_with(
+            [str(installer.python_in(slot)), "-m", "gh_agent", "gui"],
+            check=True,
+        )
+        self.assertEqual(result, "Active application process exited")
+
     def test_verify_refuses_unmanaged_directory(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             with self.assertRaisesRegex(ValueError, "No managed"):

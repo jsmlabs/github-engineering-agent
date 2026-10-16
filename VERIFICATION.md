@@ -5,21 +5,22 @@
 > [!IMPORTANT]
 > **Evidence ledger, not certification.** A green offline test matrix verifies the checks that actually ran for **that commit**. It does not prove authenticated OpenAI/GitHub integration, safe generated code, trusted Docker execution or production readiness.
 
-## Latest verified baseline
+## Last inspected integrated baseline (before this change)
 
-**Verified baseline: merged PR #25 on `main`, 2026-10-16.**
+**Merged PR [#30](https://github.com/jsmlabs/github-engineering-agent/pull/30) on `main`, inspected 2026-10-16.** This is an exact-commit evidence snapshot, not a claim that new changes already passed CI.
 
 | Item | Observed evidence |
 | --- | --- |
-| Authoritative `main` commit | [`98b950c90616141ff2510d530361f6d599f08afe`](https://github.com/jsmlabs/github-engineering-agent/commit/98b950c90616141ff2510d530361f6d599f08afe) |
-| Offline workflow on that commit | [Run 38830186202](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38830186202): **completed / success** |
-| Matrix | **7/7 successful jobs**: Ubuntu, macOS and Windows × Python 3.11/3.13 plus Ubuntu/Python 3.12 |
-| Concrete test observation | Ubuntu/Python 3.13 job: **102 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
-| Commands executed by workflow | `python scripts/verify.py` → Python compilation, `unittest discover`, CLI `--help` |
-| Product release metadata | `pyproject.toml` version **0.2.0**, Python **3.11+**, no runtime package dependencies |
-| Live API/daemon test | **Not observed**; see [verification gaps](#remaining-verification-gaps) |
+| Inspected `main` commit | [`115eaae86f0394c6e99262e8ff09cb9ae678754b`](https://github.com/jsmlabs/github-engineering-agent/commit/115eaae86f0394c6e99262e8ff09cb9ae678754b) |
+| Offline workflow on that commit | [Run 38854528719](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38854528719): **completed / success** |
+| Matrix | **7/7 jobs successful**: Ubuntu, macOS and Windows × Python 3.11/3.13 plus Ubuntu/Python 3.12 |
+| Concrete test observation | Ubuntu/Python 3.13 job: **130 tests, OK**, followed by `LOCAL_VERIFICATION_PASS (offline only)` |
+| Commands executed by workflow | `python scripts/verify.py` (compilation, unittest discovery, CLI `--help`) |
+| Baseline package metadata | `0.2.0` at the observed commit; no runtime package dependencies |
+| Current source package metadata | `0.3.0.dev0` is an **unpublished development version**, not a released artifact or CI assertion |
+| Live API/daemon and GUI E2E tests | **Not established** by the offline CI matrix |
 
-The snapshot SHA and workflow identify the last verified merged baseline before this file-finder/recipes enhancement. New file-filtering, path-protection and no-execution tests require fresh CI on their exact head and merge commits.
+The new launcher regression must pass CI on its own PR head and merged commit before it can be considered verified. No evidence from the baseline run is attributed to this later fix.
 
 ## Recent change evidence
 
@@ -39,6 +40,7 @@ The snapshot SHA and workflow identify the last verified merged baseline before 
 | [#23 dashboard and catalog](https://github.com/jsmlabs/github-engineering-agent/pull/23) | [38826491153](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38826491153), **7/7 pass** | [38826698236](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38826698236), **success** on `5ba2d2607c4b23e8a19417af1626f4e3009ad497` | Offline 92-test suite including dashboard-state and command-catalog regressions |
 | [#24 workspace and plan preview](https://github.com/jsmlabs/github-engineering-agent/pull/24) | [38827438995](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38827438995), **7/7 pass** | [38827691004](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38827691004), **success** on `b589a95ebbfc688afb998614f5c7ce59a56ab3b3` | Offline 97-test suite with workspace, dry-run plan-preview and menu safety regressions |
 | [#25 file finder and task recipes](https://github.com/jsmlabs/github-engineering-agent/pull/25) | [38829976622](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38829976622), **7/7 pass** | [38830186202](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38830186202), **success** on `98b950c90616141ff2510d530361f6d599f08afe` | 102 offline tests including menu, file scope and static recipe coverage |
+| [#30 offline installer and GUI launchers](https://github.com/jsmlabs/github-engineering-agent/pull/30) | [38853767093](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38853767093), **7/7 pass** | [38854528719](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38854528719), **success** on `115eaae86f0394c6e99262e8ff09cb9ae678754b` | 130 offline tests cover local wheel installation, recovery, launcher prerequisites and related contracts; not a real desktop E2E test |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
