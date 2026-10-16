@@ -20,6 +20,22 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 > [!IMPORTANT]
 > **Reference implementation — not a production-validated autonomous engineer.** The agent can create an approved local commit and an **open pull request**. It does **not** approve reviews, merge, or deploy. Offline tests do not establish live OpenAI/GitHub compatibility, target-code correctness, or real Docker isolation. See [Verification](VERIFICATION.md).
 
+## Local installation and maintenance (preview)
+
+The repository includes an **offline, user-scoped installation manager** for a trusted local Python wheel. It does **not** discover releases, download artifacts, install Python or Git, create shortcuts, retain rollback versions, or automatically update from `main`. Use Python 3.11+ and verify the wheel checksum **independently** before installation.
+
+~~~bash
+python scripts/installer.py install --wheel /path/to/release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
+python scripts/installer.py verify
+python scripts/installer.py repair --wheel /path/to/release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
+python scripts/installer.py update --wheel /path/to/new-release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
+python scripts/installer.py uninstall --confirm UNINSTALL
+~~~
+
+On a graphical workstation, use `python scripts/installer_gui.py` for Install, Update/Repair, Verify and Uninstall actions. It uses OS Tkinter when available and runs operations off the UI thread. The managed directory defaults to the user's local application-data location. Installing into an existing unmarked directory is refused; uninstall requires a marker and refuses unexpected top-level files. The application keeps its normal explicit CLI permissions and does not prompt for or store credentials.
+
+**Limitations:** Update/repair currently reinstalls the selected local wheel in place; interrupted pip operations can require manual recovery. This is not an atomic installer, a signed automatic updater, a reversible rollback mechanism, or a substitute for live desktop/E2E verification. See [installation guidance](docs/INSTALLATION.md).
+
 ## Start in terminal
 
 Install once from **this agent repository** using `python -m pip install .`. Then open a terminal in the **target** repository's clean Git checkout. The installed command is `gh-engineer` (or `python -m gh_agent`).
