@@ -2,9 +2,16 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev1** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev2** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Offline wheel packaging verification
+
+- Add a disposable-source, no-index wheel build and isolated-venv installation check for exact package metadata and the `gh-engineer` console entry point.
+- Explicitly bootstrap exact-version, SHA-256-locked build wheels in the CI setup step (networked); keep the subsequent wheel build and installed-CLI verification offline to avoid unreliable runner tool preinstalls.
+- Run a separate Ubuntu/macOS/Windows Python 3.11 packaging matrix while preserving the existing seven-job offline regression suite.
+- Advance unpublished development metadata to **0.3.0.dev2** to identify this pre-release quality-gate iteration; this is not a tagged or published release.
 
 ### Installer state validation (unreleased)
 
