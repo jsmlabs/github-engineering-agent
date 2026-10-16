@@ -81,6 +81,19 @@ class GuiContractTests(unittest.TestCase):
         with patch("gh_agent.gui.subprocess.run", return_value=failed):
             self.assertEqual(gui.inspect_process("workspace"), {"ok": False, "error": "Workspace unavailable"})
 
+    def test_worker_exception_is_recoverable_without_leaking_details(self):
+        with patch("gh_agent.gui.inspect_process", side_effect=RuntimeError("sensitive details")):
+            result = gui.safe_inspect_process("workspace", ())
+        self.assertFalse(result["ok"])
+        self.assertIn("retry", result["error"])
+        self.assertNotIn("sensitive", result["error"])
+
+    def test_worker_preserves_successful_results(self):
+        expected = {"ok": True, "data": {"ready": True}}
+        with patch("gh_agent.gui.inspect_process", return_value=expected) as check:
+            self.assertEqual(gui.safe_inspect_process("workspace", ()), expected)
+        check.assert_called_once_with("workspace", ())
+
     def test_blocked_command_never_reaches_cli(self):
         with patch("gh_agent.cli.main") as cli:
             with self.assertRaises(ValueError):
