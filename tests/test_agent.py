@@ -326,6 +326,103 @@ class AgentTest(unittest.TestCase):
         self.assertIn("PLAN PREVIEW (NOT EXECUTED)", out.getvalue())
         self.assertFalse(self.planfile.exists())
 
+    def test_files_json_filters_and_limits_without_network(self):
+        (self.checkout / "docs").mkdir()
+        (self.checkout / "docs" / "guide.md").write_text("guide\n", encoding="utf-8")
+        git(self.checkout, "add", "docs/guide.md")
+        git(self.checkout, "commit", "-m", "add guide")
+        args = ["files", "--checkout", str(self.checkout), "--repo", "example/safe-repo",
+                "--json", "--limit", "1"]
+        with (redirect_stdout(StringIO()) as out, patch.object(cli, "GitHub") as github,
+              patch.object(cli, "Model") as model):
+            self.assertEqual(cli.main(args), 0)
+            github.assert_not_called()
+            model.assert_not_called()
+        result = json.loads(out.getvalue())
+        self.assertEqual(result["files"], ["app.py"])
+        self.assertEqual(result["matching_count"], 2)
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["selection_limit"], 12)
+        self.assertFalse(result["source_uploaded"])
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(cli.main(args + ["--search", "GUIDE"]), 0)
+        result = json.loads(out.getvalue())
+        self.assertEqual(result["files"], ["docs/guide.md"])
+        self.assertFalse(result["truncated"])
+
+    def test_files_rejects_invalid_query_and_limits(self):
+        good = argparse.Namespace(checkout=str(self.checkout), repo=None,
+                                  search="", limit=20, json=False)
+        for bad, msg in (
+            ({"search": "\x1b[31m"}, "printable"),
+            ({"search": "a" * 81}, "printable"),
+            ({"search": 12}, "printable"),
+            ({"limit": 0}, "between 1 and 50"),
+            ({"limit": 51}, "between 1 and 50"),
+            ({"limit": True}, "between 1 and 50"),
+        ):
+            with self.subTest(bad=bad), self.assertRaisesRegex(AgentError, msg):
+                cli.files(argparse.Namespace(**{**vars(good), **bad}))
+        with self.assertRaisesRegex(AgentError, "Origin does not match"):
+            cli.files(argparse.Namespace(checkout=str(self.checkout), repo="different/repo",
+                                         search="", limit=20, json=False))
+
+    def test_files_excludes_protected_tracked_paths_and_does_not_read_contents(self):
+        (self.checkout / ".env").write_text("TOKEN=private\n", encoding="utf-8")
+        git(self.checkout, "add", ".env")
+        git(self.checkout, "commit", "-m", "tracked but protected path")
+        with (redirect_stdout(StringIO()) as out,
+              patch.object(cli, "read_selected") as read_contents,
+              patch.object(cli, "GitHub") as github):
+            self.assertEqual(cli.main(["files", "--checkout", str(self.checkout),
+                                       "--json"]), 0)
+            read_contents.assert_not_called()
+            github.assert_not_called()
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["files"], ["app.py"])
+        self.assertNotIn(".env", out.getvalue())
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(cli.main(["files", "--checkout", str(self.checkout),
+                                       "--search", "nomatch"]), 0)
+        self.assertIn("No matching tracked files", out.getvalue())
+
+    def test_recipes_are_static_topic_filtered_and_read_only(self):
+        with (redirect_stdout(StringIO()) as out, patch.object(cli, "GitHub") as github,
+              patch.object(cli, "Model") as model,
+              patch.object(cli, "run_git") as run):
+            self.assertEqual(cli.main(["recipes", "--topic", "scope", "--json"]), 0)
+            github.assert_not_called()
+            model.assert_not_called()
+            run.assert_not_called()
+        result = json.loads(out.getvalue())
+        self.assertFalse(result["executed"])
+        self.assertEqual([r["topic"] for r in result["recipes"]], ["scope"])
+        self.assertIn("gh-engineer files", result["recipes"][0]["steps"][0])
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(cli.main(["recipes", "--topic", "review"]), 0)
+        self.assertIn("NOTHING executed", out.getvalue())
+        self.assertIn("--expected-sha256", out.getvalue())
+
+    def test_menu_file_finder_and_recipes_navigation_never_run_actions(self):
+        class FakeTTY(StringIO):
+            def isatty(self):
+                return True
+        input_stream = FakeTTY("9\napp\n10\n0\n")
+        output_stream = FakeTTY()
+        with (patch.object(cli.sys, "stdin", input_stream),
+              patch.object(cli.sys, "stdout", output_stream),
+              patch.object(cli, "Model") as model,
+              patch.object(cli, "publish") as publish,
+              patch.object(cli, "apply") as apply):
+            self.assertEqual(cli.main(["menu", "--checkout", str(self.checkout),
+                                       "--no-color"]), 0)
+            model.assert_not_called()
+            publish.assert_not_called()
+            apply.assert_not_called()
+        self.assertIn("--allowed-file app.py", output_stream.getvalue())
+        self.assertIn("TASK RECIPES", output_stream.getvalue())
+        self.assertIn("Menu closed", output_stream.getvalue())
+
     def test_cli_checkout_defaults_and_explicit_approvals(self):
         for argv in (
             ["review", "--proposal", str(self.planfile)],
