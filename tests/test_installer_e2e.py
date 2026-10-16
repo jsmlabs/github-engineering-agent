@@ -40,6 +40,7 @@ class InstallerE2ETests(unittest.TestCase):
             second, second_hash = stub_wheel(base, "0.2.1")
             self.assertIn("0.2.0", installer.install(target, first, first_hash))
             self.assertIn("0.2.0", installer.verify(target))
+            self.assertIn("no reinstall", installer.install(target, first, first_hash))
             self.assertIn("0.2.1", installer.install(target, second, second_hash))
             self.assertIn("0.2.1", installer.verify(target))
             self.assertIn("0.2.0", installer.rollback(target))
