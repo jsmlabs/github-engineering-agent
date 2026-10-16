@@ -45,7 +45,8 @@ def validate_wheel(path: Path, expected_sha256: str) -> tuple[Path, str]:
     wheel = path.expanduser().resolve(strict=True)
     if not wheel.is_file() or wheel.suffix != ".whl":
         raise ValueError("Select a local .whl file")
-    actual = hashlib.file_digest(wheel.open("rb"), "sha256").hexdigest()
+    with wheel.open("rb") as stream:
+        actual = hashlib.file_digest(stream, "sha256").hexdigest()
     if actual != expected_sha256:
         raise ValueError("Wheel integrity check failed")
     with zipfile.ZipFile(wheel) as archive:
