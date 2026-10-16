@@ -28,6 +28,10 @@ This iteration adds offline unit coverage for checksum syntax and action-specifi
 
 This change introduces a subprocess-backed GUI inspection path and headless regression tests. A passing CI suite does not establish real GUI rendering or accessibility on Windows, macOS, or Linux. The version `0.3.0.dev4` remains unpublished development metadata.
 
+## Desktop worker recovery (unreleased)
+
+Regression checks cover worker success and unexpected exceptions without exposing underlying error content. UI-close and selection semantics are implemented but require real interactive Tk validation; no such execution is claimed here. `0.3.0.dev5` is unpublished development metadata.
+
 ## Recent change evidence
 
 | Scope | PR-head CI | Integrated target-branch evidence | What it establishes |
