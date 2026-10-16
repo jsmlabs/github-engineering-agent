@@ -7,19 +7,18 @@
 
 ## Last inspected integrated baseline (before this change)
 
-**Merged PR [#31](https://github.com/jsmlabs/github-engineering-agent/pull/31) on `main`, inspected 2026-10-16.** This records the verified baseline before the present state-validation fix.
+**Merged PR [#32](https://github.com/jsmlabs/github-engineering-agent/pull/32) on `main`, inspected 2026-10-16.** The results below apply to the baseline commit, not to this unmerged packaging change.
 
 | Item | Observed evidence |
 | --- | --- |
-| Inspected `main` commit | [`e60013f8951722730c0154a0bcc7562b65f29284`](https://github.com/jsmlabs/github-engineering-agent/commit/e60013f8951722730c0154a0bcc7562b65f29284) |
-| Offline workflow on that commit | [Run 38858874008](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38858874008): **completed / success** |
-| Matrix | **7/7 jobs successful**: Ubuntu, macOS and Windows × Python 3.11/3.13 plus Ubuntu/Python 3.12 |
-| Concrete test observation | [PR-head run 38858644621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38858644621), Ubuntu/Python 3.13: **131 tests, OK**, including launcher regression |
-| Baseline package metadata | Unpublished `0.3.0.dev0` |
-| Proposed metadata | `0.3.0.dev1`, unreleased development metadata; no published build asserted |
-| Live API/daemon and GUI E2E tests | **Not established** by offline CI |
+| Inspected `main` commit | [`113bbf64ee9eef5a35be50a8caabd7c30907bf07`](https://github.com/jsmlabs/github-engineering-agent/commit/113bbf64ee9eef5a35be50a8caabd7c30907bf07) |
+| Offline CI on that commit | [Run 38861070720](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38861070720): **completed / success**, seven test jobs |
+| Test coverage observation | [PR-head run 38860858920](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38860858920): Ubuntu/Python 3.13 passed **133 offline tests**, including malformed-state regressions |
+| Baseline metadata | Unpublished development version `0.3.0.dev1` |
+| Proposed metadata | Unpublished development version `0.3.0.dev2`; not a release |
+| Distribution and live integration | No independently observed wheel build/install, signed distribution or authenticated GitHub/OpenAI workflow at this baseline |
 
-New installer-state checks require fresh CI on their exact PR head and merged commit.
+**New verification gate proposed in this PR:** the existing seven offline regression jobs plus three OS-specific Python 3.11 wheel-build/install jobs. Only exact-commit CI evidence can establish that this new gate passes.
 
 ## Recent change evidence
 
@@ -41,6 +40,7 @@ New installer-state checks require fresh CI on their exact PR head and merged co
 | [#25 file finder and task recipes](https://github.com/jsmlabs/github-engineering-agent/pull/25) | [38829976622](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38829976622), **7/7 pass** | [38830186202](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38830186202), **success** on `98b950c90616141ff2510d530361f6d599f08afe` | 102 offline tests including menu, file scope and static recipe coverage |
 | [#30 offline installer and GUI launchers](https://github.com/jsmlabs/github-engineering-agent/pull/30) | [38853767093](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38853767093), **7/7 pass** | [38854528719](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38854528719), **success** on `115eaae86f0394c6e99262e8ff09cb9ae678754b` | 130 offline tests cover local wheel installation, recovery, launcher prerequisites and related contracts; not a real desktop E2E test |
 | [#31 long-running launcher fix](https://github.com/jsmlabs/github-engineering-agent/pull/31) | [38858644621](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38858644621), **7/7 pass** | [38858874008](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38858874008), **success** on `e60013f8951722730c0154a0bcc7562b65f29284` | 131 offline tests on PR head, including launch contract regression; real desktop endurance testing remains open |
+| [#32 strict installer state validation](https://github.com/jsmlabs/github-engineering-agent/pull/32) | [38860858920](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38860858920), **7/7 pass** | [38861070720](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38861070720), **success** on `113bbf64ee9eef5a35be50a8caabd7c30907bf07` | 133 offline tests on PR head, including strict installer state parsing; no wheel distribution validation |
 | Older reference integration | N/A | [38798940522](https://github.com/jsmlabs/github-engineering-agent/actions/runs/38798940522), **success** on `b3b7d871a8f7b36d9ce09dc8f3310ff0fc989f5a` | Earlier verification/recovery implementation's offline workflow |
 
 **Important distinction:** PR and merge activity performed by a GitHub maintainer or separate integration tooling is **not** an authenticated end-to-end test of this CLI's own `publish` method.
@@ -51,13 +51,14 @@ Run from a trusted checkout of this repository with Python 3.11+ and Git:
 
 ~~~bash
 python scripts/verify.py
+python scripts/verify_package.py
 python -m unittest discover -s tests -v
 python -m gh_agent --help
 ~~~
 
 `scripts/verify.py` runs: (1) `python -m compileall -q gh_agent tests`, (2) verbose unittest discovery, then (3) `python -m gh_agent --help`. The CLI enhancement adds read-only smoke commands for the home screen, guide, doctor help, and next help. It exits nonzero on a failed command.
 
-The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The configured GitHub Actions workflow runs seven jobs: six OS/Python combinations plus Ubuntu/Python 3.12, with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout. This CLI UX change additionally tests the home screen, guide and command help; only the exact-commit CI result can establish whether those pass.
+The default tests use temporary Git repositories and test doubles for network/model behavior. They do not require GitHub/OpenAI tokens or a live Docker daemon. The configured GitHub Actions workflow runs seven offline test jobs plus three Python 3.11 packaging jobs (Ubuntu, macOS and Windows), with read-only repository permission, non-persistent checkout credentials, SHA-pinned actions and a 15-minute job timeout. The package checker requires an already available build backend; package indexes are disabled and no wheel is uploaded. **A successful packaging job establishes only a local wheel build, temporary installation and CLI smoke check on the specific OS.** This CLI UX change additionally tests the home screen, guide and command help; only the exact-commit CI result can establish whether those pass.
 
 ### Evidence classification
 
