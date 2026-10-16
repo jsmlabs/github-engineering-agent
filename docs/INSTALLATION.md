@@ -10,7 +10,7 @@
 
 - Windows 10/11: double-click `install-windows.cmd` from the extracted repository. It opens the optional Tk maintenance window when Python/Tk are available.
 - macOS/Linux: run `sh ./install-unix.sh` from the repository root.
-- Both launchers are frontend entry points only. They do not download or install Python, Git or release files; supply a trusted local wheel and checksum in the interface.
+- After installation, use `run-agent.cmd` on Windows or `sh ./run-agent.sh` on macOS/Linux to launch the active verified release. Both setup launchers are frontend entry points only. They do not download or install Python, Git or release files; supply a trusted local wheel and checksum in the interface.
 
 ## Usage
 ```bash
@@ -18,7 +18,7 @@ python scripts/installer.py install --wheel /absolute/release.whl --sha256 CHECK
 python scripts/installer.py verify
 python scripts/installer.py update --wheel /absolute/new-release.whl --sha256 CHECKSUM
 python scripts/installer.py repair --wheel /absolute/release.whl --sha256 CHECKSUM
-python scripts/installer.py rollback\npython scripts/installer.py status\npython scripts/installer.py uninstall --confirm UNINSTALL
+python scripts/installer.py rollback\npython scripts/installer.py status\npython scripts/installer.py launch --agent-args gui\npython scripts/installer.py uninstall --confirm UNINSTALL
 python scripts/installer_gui.py
 ```
 
