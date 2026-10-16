@@ -10,7 +10,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 - Add a local-wheel installation, verification, isolated release update/repair, verified rollback and guarded uninstallation CLI plus optional Tkinter maintenance GUI.
 - Require an explicit SHA-256 matching a trusted local wheel; preserve CLI permission boundaries and avoid automatic network downloads.
-- Add regression coverage, installation/recovery documentation and disclose lack of atomic rollback or release discovery.
+- Add regression coverage, installation/recovery documentation and disclose incomplete transaction isolation and lack of trusted automatic release discovery.
 
 
 ### Optional GUI-first desktop workflow
