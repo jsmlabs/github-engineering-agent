@@ -67,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     destination = tk.StringVar()
     filter_text = tk.StringVar()
     selected_paths: list[str] = []
+    selected_checkout = ""
 
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill="both", expand=True)
@@ -91,20 +92,40 @@ def main(argv: list[str] | None = None) -> int:
         tabs.add(page, text=label)
         panels[label] = page
     output = tk.Text(frame, height=10, state="disabled", wrap="word", font=("TkFixedFont", 10))
-    output.pack(fill="x")
+    output.pack(fill="both", expand=False, pady=(4, 0))
+    output.configure(takefocus=True)
+    status = tk.StringVar(value="Ready · local inspection only")
+    footer = ttk.Frame(frame)
+    footer.pack(fill="x", pady=(6, 0))
+    ttk.Label(footer, textvariable=status).pack(side="left", fill="x", expand=True)
+    def copy_result():
+        value = output.get("1.0", "end-1c")
+        if value:
+            root.clipboard_clear()
+            root.clipboard_append(value)
+            status.set("Result copied to clipboard")
+    ttk.Button(footer, text="Copy result", command=copy_result).pack(side="right")
+    root.bind("<Control-Shift-C>", lambda _event: copy_result())
     def show(message):
         output.configure(state="normal")
         output.delete("1.0", "end")
         output.insert("1.0", message if isinstance(message, str) else json.dumps(message, indent=2))
         output.configure(state="disabled")
     def call(action, args=()):
-        result = inspect(action, list(args))
+        status.set(f"Checking {action} locally…")
+        root.update_idletasks()
+        try:
+            result = inspect(action, list(args))
+        except (ValueError, OSError) as exc:
+            result = {"ok": False, "error": str(exc)}
         show(result.get("data", result.get("error")))
+        status.set(f"{action}: {'complete' if result['ok'] else 'validation failed'} · local only")
         return result
 
     home = panels["Overview"]
     ttk.Label(home, text="Workspace and proposal status", style="Heading.TLabel").pack(anchor="w", pady=8)
     ttk.Button(home, text="Check local workspace", command=lambda: call("workspace", ["--checkout", checkout.get()])).pack(anchor="w", pady=6)
+    ttk.Label(home, text="Select a tab, then run an explicit local check. No checks run automatically.").pack(anchor="w", pady=4)
     ttk.Button(home, text="Inspect proposal progress", command=lambda: call("dashboard", ["--checkout", checkout.get(), "--proposal", proposal.get()])).pack(anchor="w", pady=6)
     ttk.Label(home, text="Local PASS does not confirm a remote PR or target CI.").pack(anchor="w", pady=10)
 
@@ -118,20 +139,32 @@ def main(argv: list[str] | None = None) -> int:
     counter = ttk.Label(files_page, text="Search local paths to begin")
     counter.pack(anchor="w", pady=5)
     def refresh():
-        result = call("files", ["--checkout", checkout.get(), "--search", filter_text.get(), "--limit", "50"])
+        nonlocal selected_checkout
+        selected_paths.clear()
+        selected_checkout = ""
         items.delete(0, "end")
+        counter.configure(text="Searching…")
+        result = call("files", ["--checkout", checkout.get(), "--search", filter_text.get(), "--limit", "50"])
         if result["ok"]:
             data = result["data"]
             for name in data["files"]:
                 items.insert("end", name)
-            counter.configure(text=f"{data['shown']} shown / {data['matching_count']} matching")
+            counter.configure(text=f"{data['shown']} shown / {data['matching_count']} matching" +
+                              (" · refine search for more" if data["truncated"] else ""))
+        else:
+            counter.configure(text="Search failed · no files selected")
     ttk.Button(top, text="Search", command=refresh).pack(side="left", padx=7)
+    filter_text_entry = top.winfo_children()[0]
+    filter_text_entry.bind("<Return>", lambda _event: refresh())
     def select():
         paths = [items.get(i) for i in items.curselection()]
         if not 1 <= len(paths) <= 12:
             messagebox.showwarning("Selection", "Select between 1 and 12 paths.")
             return
+        nonlocal selected_checkout
         selected_paths[:] = paths
+        selected_checkout = str(Path(checkout.get()).resolve(strict=False))
+        status.set(f"{len(paths)} file paths selected · no upload")
         show({"selected_paths": paths, "uploaded": False})
         tabs.select(panels["Plan preview"])
     ttk.Button(files_page, text="Use selected files in plan preview", command=select).pack(anchor="w", pady=6)
@@ -145,8 +178,10 @@ def main(argv: list[str] | None = None) -> int:
         ttk.Label(line, text=label, width=24).pack(side="left")
         ttk.Entry(line, textvariable=value).pack(side="left", fill="x", expand=True)
     def prepare_preview():
-        if not selected_paths:
-            show("Select 1–12 eligible tracked files from the Files tab.")
+        if not selected_paths or selected_checkout != str(Path(checkout.get()).resolve(strict=False)):
+            selected_paths.clear()
+            show("File selection is missing or checkout changed. Search and select eligible files again.")
+            status.set("Selection requires refresh")
             return
         number = issue.get().strip()
         if not number.isdecimal() or not 1 <= len(number) <= 12 or int(number) < 1:
@@ -165,6 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     for label, command in (("Show safe workflow", "guide"), ("Browse commands", "commands"),
                            ("Task examples", "recipes")):
         ttk.Button(help_panel, text=label, command=lambda c=command: call(c)).pack(anchor="w", pady=6)
+    root.bind("<Escape>", lambda _event: root.focus_set())
     show("Welcome. Choose an overview, search eligible files or preview a scoped plan.\nNo action has been started.")
     root.mainloop()
     return 0
