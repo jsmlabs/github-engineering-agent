@@ -23,7 +23,11 @@ OPTIONS = {
 
 def validate_arguments(action: str, args: list[str] | tuple[str, ...]) -> None:
     """Fail closed before invoking the CLI, including for unexpected options."""
-    validate_arguments(action, args)
+    if action not in READ_ONLY or type(args) not in (list, tuple) or any(type(x) is not str for x in args):
+        raise ValueError("Only known read-only actions and string arguments are allowed")
+    if any(x in {"--allow-source-upload", "--approve", "--approve-local",
+                 "--approve-publish", "--remote"} for x in args):
+        raise ValueError("GUI cannot grant write, upload or remote permissions")
     allowed = OPTIONS[action]
     if len(args) % 2:
         raise ValueError("GUI arguments must be option/value pairs")
@@ -36,11 +40,7 @@ def validate_arguments(action: str, args: list[str] | tuple[str, ...]) -> None:
 
 def inspect(action: str, args: list[str] | tuple[str, ...] = ()) -> dict:
     """Run an explicit local-only CLI command and return its result."""
-    if action not in READ_ONLY or type(args) not in (list, tuple) or any(type(x) is not str for x in args):
-        raise ValueError("Only known read-only actions and string arguments are allowed")
-    if any(x in {"--allow-source-upload", "--approve", "--approve-local",
-                 "--approve-publish", "--remote"} for x in args):
-        raise ValueError("GUI cannot grant write, upload or remote permissions")
+    validate_arguments(action, args)
     from .cli import main as cli_main
     output, errors = StringIO(), StringIO()
     argv = [action, *args]
