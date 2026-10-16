@@ -65,6 +65,19 @@ class InstallerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "maximum allowed size"):
                     installer.validate_wheel(wheel, digest)
 
+    def test_preview_is_read_only_and_discloses_no_credentials(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d) / "new-install"
+            wheel = Path(d) / "github_engineering_agent-0.2.0-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("github_engineering_agent-0.2.0.dist-info/METADATA",
+                                 "Name: github-engineering-agent\nVersion: 0.2.0\n")
+            digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            result = installer.preview(target, wheel, digest)
+            self.assertIn('"candidate_version": "0.2.0"', result)
+            self.assertIn('"executed": false', result)
+            self.assertFalse(target.exists())
+
     def test_uninstall_refuses_unknown_files_and_requires_confirmation(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "managed"
