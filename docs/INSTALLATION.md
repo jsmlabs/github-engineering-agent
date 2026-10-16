@@ -34,7 +34,7 @@ For a custom install location, provide `--target /path/under/user/home`. Uninsta
 ## Known limitations
 - The installer is an **offline preview**, not a completed one-click distribution package.
 - The expected hash must come from a trusted channel separate from the wheel; SHA-256 alone does not establish publisher identity.
-- Each wheel uses its own persistent virtual environment. Activation of a verified release is atomic via a small local state file and the previously active release remains available for rollback. Interrupted installation can leave an incomplete release slot; retry repair with the same wheel/checksum. The installer does not provide transactional rollback of arbitrary external effects.
+- Each wheel uses its own persistent virtual environment. Activation of a verified release is atomic via a small local state file and the previously active release remains available for rollback. Interrupted installation can leave an incomplete release slot; retry repair with the same wheel/checksum. A local `.installer.lock` serializes mutation operations; if the process terminates abruptly, inspect the installation and confirm no installer process is active before removing that stale lock manually. The installer does not provide transactional rollback of arbitrary external effects.
 - There is no automatic release discovery, publisher signature verification, remote update manifest, release notes viewer, shortcut provisioning, or OS-level integration.
 - Desktop interaction, Windows installation pathways and actual wheel build/install are not fully exercised by headless tests.
 - Do not treat a newer source commit on `main` as a released upgrade.
