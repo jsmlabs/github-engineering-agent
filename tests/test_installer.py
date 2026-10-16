@@ -34,6 +34,23 @@ class InstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
                 installer.validate_wheel(wheel, "0" * 64)
 
+    def test_wheel_rejects_archive_traversal_and_wrong_package(self):
+        with tempfile.TemporaryDirectory() as d:
+            wheel = Path(d) / "github_engineering_agent-0.2.0-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("../outside.txt", "unexpected")
+                archive.writestr("github_engineering_agent-0.2.0.dist-info/METADATA",
+                                 "Name: github-engineering-agent\\nVersion: 0.2.0\\n")
+            digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(ValueError, "unsafe archive"):
+                installer.validate_wheel(wheel, digest)
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("github_engineering_agent-0.2.0.dist-info/METADATA",
+                                 "Name: wrong-package\\nVersion: 0.2.0\\n")
+            digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(ValueError, "distribution metadata"):
+                installer.validate_wheel(wheel, digest)
+
     def test_uninstall_refuses_unknown_files_and_requires_confirmation(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "managed"
