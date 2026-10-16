@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import threading
 from queue import Empty, Queue
 import tkinter as tk
@@ -9,6 +10,15 @@ from tkinter import filedialog, messagebox, ttk
 
 from setup_check import snapshot as setup_snapshot
 from installer import default_target, install, preview, rollback, status as install_status, uninstall, verify
+
+
+def validate_release_input(wheel: str, digest: str) -> str | None:
+    """Validate GUI release fields before starting a maintenance worker."""
+    if not wheel.strip():
+        return "Select a trusted local Python wheel."
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", digest.strip()):
+        return "Enter a SHA-256 checksum containing exactly 64 hexadecimal characters."
+    return None
 
 
 def main() -> None:
@@ -45,18 +55,19 @@ def main() -> None:
     for column in range(3):
         actions.columnconfigure(column, weight=1)
     buttons = []
-    results: Queue[tuple[str, str]] = Queue()
+    results: Queue[tuple[str, str, str]] = Queue()
     busy = False
     progress = ttk.Progressbar(frame, mode="indeterminate")
     progress.pack(fill="x", pady=(6, 4))
 
     def poll_results():
         try:
-            kind, message = results.get_nowait()
+            action, kind, message = results.get_nowait()
         except Empty:
             pass
         else:
-            status.set("Completed" if kind == "ok" else "Failed · review the details below")
+            status.set(f"{action.capitalize()} completed locally" if kind == "ok" else
+                       f"{action.capitalize()} failed · review the details below")
             show(message)
             set_busy(False)
         root.after(100, poll_results)
@@ -75,9 +86,12 @@ def main() -> None:
     def execute(action):
         if busy:
             return
-        if action in ("preview", "install", "update", "repair") and (not wheel.get().strip() or len(digest.get().strip()) != 64):
-            messagebox.showwarning("Missing release input", "Select a trusted wheel and provide its 64-character SHA-256 checksum.")
-            return
+        if action in ("preview", "install", "update", "repair"):
+            problem = validate_release_input(wheel.get(), digest.get())
+            if problem:
+                messagebox.showwarning("Invalid release input", problem)
+                status.set("Release input requires correction")
+                return
         if action == "rollback" and not messagebox.askyesno("Rollback", "Restore the previously verified release?"):
             return
         if action == "uninstall":
@@ -107,10 +121,10 @@ def main() -> None:
                     result = rollback(snapshot[0])
                 else:
                     result = uninstall(snapshot[0], confirm)
-                results.put(("ok", result))
+                results.put((action, "ok", result))
             except Exception as exc:
                 msg = f"{type(exc).__name__}: {exc}"
-                results.put(("error", msg))
+                results.put((action, "error", msg))
 
         threading.Thread(target=worker, daemon=True).start()
 
