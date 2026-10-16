@@ -8,7 +8,7 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 
 [![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)
-![Unreleased development metadata v0.3.0.dev7](https://img.shields.io/badge/package-0.3.0.dev7--unreleased-64748b)
+![Unreleased development metadata v0.3.0.dev8](https://img.shields.io/badge/package-0.3.0.dev8--unreleased-64748b)
 ![Reference implementation](https://img.shields.io/badge/maturity-reference-64748b)
 
 **`plan` → `review` → `apply` → `verify` → `publish`**
@@ -21,6 +21,9 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 > **Reference implementation — not a production-validated autonomous engineer.** The agent can create an approved local commit and an **open pull request**. It does **not** approve reviews, merge, or deploy. Offline tests do not establish live OpenAI/GitHub compatibility, target-code correctness, or real Docker isolation. See [Verification](VERIFICATION.md).
 
 ## Local installation and maintenance (preview)
+
+The maintenance GUI supports Ctrl+1 for local environment inspection, Ctrl+6 for installation status, and Ctrl+7 for local verification. These shortcuts do not authorize installation, rollback or deletion.
+
 
 The repository includes an **offline, user-scoped installation manager** for a trusted local Python wheel. It does **not** discover releases, download artifacts, install Python or Git, create shortcuts or automatically update from `main`. Use Python 3.11+ and verify the wheel checksum **independently** before installation.
 
@@ -333,7 +336,7 @@ Remote push and PR creation are **not atomic**; a pushed branch may exist withou
 
 **Desktop responsiveness:** Local GUI inspections now execute in a bounded, isolated Python subprocess on a worker thread; Tkinter receives results on its own event loop. Only one inspection runs at a time and stale file searches are discarded. This does not add remote approvals or execution capabilities.
 
-**Compatibility:** Unpublished development package metadata **0.3.0.dev7** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
+**Compatibility:** Unpublished development package metadata **0.3.0.dev8** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
 
 <details>
 <summary><strong>Engineering references and upstream APIs</strong></summary>

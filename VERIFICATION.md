@@ -40,6 +40,10 @@ A new headless status-contract test covers explicit local success and failure wo
 
 Headless focus-contract checks cover the file-search keyboard helper; real keyboard operation and assistive-technology behavior remain unverified without a desktop display. `0.3.0.dev7` is not a published release.
 
+## Installer keyboard interaction (unreleased)
+
+Headless tests cover action-specific feedback. Shortcuts are implemented for local read-only Environment, Status and Verify actions, but real keyboard navigation and assistive-technology testing remain outstanding. `0.3.0.dev8` is unpublished development metadata.
+
 ## Recent change evidence
 
 | Scope | PR-head CI | Integrated target-branch evidence | What it establishes |

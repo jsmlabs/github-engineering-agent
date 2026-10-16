@@ -6,10 +6,14 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from installer_gui import validate_release_input
+from installer_gui import validate_release_input, maintenance_message
 
 
 class InstallerGuiValidationTests(unittest.TestCase):
+    def test_action_specific_local_status(self):
+        self.assertEqual(maintenance_message("verify", True), "Verify completed locally")
+        self.assertEqual(maintenance_message("rollback", False), "Rollback failed · review the details below")
+
     def test_missing_wheel(self):
         self.assertIn("wheel", validate_release_input(" ", "a" * 64))
 

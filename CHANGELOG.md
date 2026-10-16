@@ -2,9 +2,16 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev7** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev8** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Installer keyboard shortcuts and feedback
+
+- Add non-mutating Ctrl+1 Environment, Ctrl+6 Status and Ctrl+7 Verify keyboard shortcuts to the maintenance window, suppressed during active work.
+- Centralize accurate action-specific local completion/failure wording and add regression tests.
+- Advance unpublished development metadata to **0.3.0.dev8**; no distribution release or privilege changes.
+
 
 ### Keyboard-first desktop navigation
 

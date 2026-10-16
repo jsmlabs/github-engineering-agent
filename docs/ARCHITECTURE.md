@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Security](../SECURITY.md) · [Verification](../VERIFICATION.md)
 
-**Implemented contract for development package metadata `0.3.0.dev7` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
+**Implemented contract for development package metadata `0.3.0.dev8` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
 
 ## System overview
 
@@ -164,3 +164,8 @@ The read-only GUI uses a Tk-managed indeterminate activity indicator and tempora
 ### Keyboard navigation
 
 The optional read-only GUI exposes Ctrl+F to activate Files and focus the search entry, and F5 to re-run discovery from the active Files tab. The actions retain the existing local-only inspection contract.
+
+
+### Installer GUI keyboard inspection
+
+The local maintenance GUI exposes Ctrl+1, Ctrl+6 and Ctrl+7 shortcuts for Environment, Status and Verify respectively. All use existing worker execution and busy-state checks; destructive actions do not receive keyboard shortcuts.
