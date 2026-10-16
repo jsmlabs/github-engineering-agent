@@ -152,8 +152,8 @@ def write_state(target: Path, state: dict) -> None:
             candidate.unlink()
 
 
-def run_checked(args: list[str], *, capture: bool = False) -> str:
-    outcome = subprocess.run(args, check=True, timeout=240,
+def run_checked(args: list[str], *, capture: bool = False, cwd: Path | None = None) -> str:
+    outcome = subprocess.run(args, check=True, timeout=240, cwd=cwd,
                              capture_output=capture, text=capture)
     return outcome.stdout.strip() if capture else ""
 
@@ -169,7 +169,7 @@ def verify_slot(slot: Path, expected_version: str) -> None:
     python = python_in(slot)
     if not python.is_file():
         raise ValueError("Release environment is missing")
-    run_checked([str(python), "-m", "gh_agent", "--help"])
+    run_checked([str(python), "-m", "gh_agent", "--help"], cwd=slot)
     actual = run_checked([str(python), "-c",
         "from importlib.metadata import version; print(version('github-engineering-agent'))"], capture=True)
     if actual != expected_version:
