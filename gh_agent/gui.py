@@ -6,6 +6,9 @@ from io import StringIO
 from pathlib import Path
 import json
 import sys
+import subprocess
+import threading
+from queue import Empty, Queue
 
 READ_ONLY = frozenset({"workspace", "files", "dashboard", "prepare", "commands", "recipes", "guide"})
 
@@ -55,6 +58,30 @@ def inspect(action: str, args: list[str] | tuple[str, ...] = ()) -> dict:
         data = json.loads(result)
     except ValueError:
         data = {"text": result.strip()}
+    return {"ok": True, "data": data}
+
+
+
+def inspect_process(action: str, args: list[str] | tuple[str, ...] = (), *, timeout: int = 60) -> dict:
+    """Run an allowlisted inspection in an isolated, bounded child process."""
+    validate_arguments(action, args)
+    argv = [sys.executable, "-m", "gh_agent", action, *args]
+    if action != "guide":
+        argv.append("--json")
+    try:
+        completed = subprocess.run(
+            argv, capture_output=True, text=True, check=False, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"Local {action} check timed out"}
+    except OSError as exc:
+        return {"ok": False, "error": f"Unable to start local check: {exc}"}
+    if completed.returncode:
+        return {"ok": False, "error": completed.stderr.strip() or "Local validation failed"}
+    try:
+        data = json.loads(completed.stdout)
+    except ValueError:
+        data = {"text": completed.stdout.strip()}
     return {"ok": True, "data": data}
 
 
@@ -164,16 +191,42 @@ def main(argv: list[str] | None = None) -> int:
         output.delete("1.0", "end")
         output.insert("1.0", format_result(message))
         output.configure(state="disabled")
-    def call(action, args=()):
-        status.set(f"Checking {action} locally…")
-        root.update_idletasks()
+    results: Queue[tuple[str, dict, object]] = Queue()
+    busy = False
+
+    def poll_results():
+        nonlocal busy
         try:
-            result = inspect(action, list(args))
-        except (ValueError, OSError) as exc:
-            result = {"ok": False, "error": str(exc)}
-        show(result.get("data", result.get("error")))
-        status.set(f"{action}: {'complete' if result['ok'] else 'validation failed'} · local only")
-        return result
+            action, result, on_complete = results.get_nowait()
+        except Empty:
+            pass
+        else:
+            busy = False
+            show(result.get("data", result.get("error")))
+            status.set(f"{action}: {'complete' if result['ok'] else 'validation failed'} · local only")
+            if on_complete is not None:
+                on_complete(result)
+        root.after(100, poll_results)
+
+    def call(action, args=(), on_complete=None):
+        nonlocal busy
+        if busy:
+            status.set("A local check is already running")
+            return
+        try:
+            validate_arguments(action, list(args))
+        except ValueError as exc:
+            show(str(exc))
+            status.set("Invalid local check input")
+            return
+        busy = True
+        status.set(f"Checking {action} locally…")
+        snapshot = tuple(args)
+
+        def worker():
+            results.put((action, inspect_process(action, snapshot), on_complete))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     home = panels["Overview"]
     ttk.Label(home, text="Workspace and proposal status", style="Heading.TLabel").pack(anchor="w", pady=8)
@@ -200,17 +253,31 @@ def main(argv: list[str] | None = None) -> int:
         nonlocal selected_checkout
         selected_paths.clear()
         selected_checkout = ""
+        if busy:
+            status.set("A local check is already running")
+            return
         items.delete(0, "end")
         counter.configure(text="Searching…")
-        result = call("files", ["--checkout", checkout.get(), "--search", filter_text.get(), "--limit", "50"])
-        if result["ok"]:
-            data = result["data"]
-            for name in data["files"]:
-                items.insert("end", name)
-            counter.configure(text=f"{data['shown']} shown / {data['matching_count']} matching" +
-                              (" · refine search for more" if data["truncated"] else ""))
-        else:
-            counter.configure(text="Search failed · no files selected")
+        requested_checkout = checkout.get()
+        requested_filter = filter_text.get()
+
+        def populate(result):
+            if checkout.get() != requested_checkout or filter_text.get() != requested_filter:
+                counter.configure(text="Search inputs changed · search again")
+                return
+            if result["ok"]:
+                data = result["data"]
+                for name in data["files"]:
+                    items.insert("end", name)
+                counter.configure(text=f"{data['shown']} shown / {data['matching_count']} matching" +
+                                  (" · refine search for more" if data["truncated"] else ""))
+            else:
+                counter.configure(text="Search failed · no files selected")
+
+        search_args = ["--checkout", requested_checkout, "--limit", "50"]
+        if requested_filter:
+            search_args.extend(["--search", requested_filter])
+        call("files", search_args, on_complete=populate)
     ttk.Button(top, text="Search", command=refresh).pack(side="left", padx=7)
     filter_text_entry = top.winfo_children()[0]
     filter_text_entry.bind("<Return>", lambda _event: refresh())
@@ -269,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     root.bind("<Escape>", lambda _event: root.focus_set())
     ttk.Label(frame, text="Shortcuts: Ctrl+1–4 switch tabs · Ctrl+Shift+C copies result · Enter searches files").pack(anchor="w", pady=(4, 0))
     show("Welcome. Choose an overview, search eligible files or preview a scoped plan.\nNo action has been started.")
+    root.after(100, poll_results)
     root.mainloop()
     return 0
 

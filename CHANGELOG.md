@@ -2,9 +2,16 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev3** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev4** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Responsive desktop inspection (unreleased)
+
+- Execute allowlisted local GUI inspections in isolated subprocesses off the Tkinter event loop, with a 60-second timeout and serialized actions.
+- Return results to the UI thread, reject stale file searches, and support unfiltered file discovery.
+- Add headless subprocess-contract regression tests; advance unpublished development metadata to **0.3.0.dev4** (not a release).
+
 
 ### Installer GUI input and status feedback
 
