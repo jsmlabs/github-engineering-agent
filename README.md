@@ -8,7 +8,7 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 
 [![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)
-![Unreleased development metadata v0.3.0.dev0](https://img.shields.io/badge/package-0.3.0.dev0--unreleased-64748b)
+![Unreleased development metadata v0.3.0.dev1](https://img.shields.io/badge/package-0.3.0.dev1--unreleased-64748b)
 ![Reference implementation](https://img.shields.io/badge/maturity-reference-64748b)
 
 **`plan` → `review` → `apply` → `verify` → `publish`**
@@ -38,6 +38,8 @@ python scripts/installer.py uninstall --confirm UNINSTALL
 ~~~
 
 On Windows, double-click `install-windows.cmd` to maintain the installation or `run-agent.cmd` to start the active agent. On macOS/Linux, use `sh ./install-unix.sh` or `sh ./run-agent.sh`. These launchers require preinstalled Python/Tk and never download the application or dependencies. The maintenance GUI offers a **Preview** action to validate release metadata and local install state without changes, and an **Environment** check for local Python, Git, Docker and credential presence. It does not validate remote access or show secret values. On a graphical workstation, use `python scripts/installer_gui.py` for Install, Update/Repair, Verify and Uninstall actions. It uses OS Tkinter when available and runs operations off the UI thread. The managed directory defaults to the user's local application-data location. Installing into an existing unmarked directory is refused; uninstall requires a marker and refuses unexpected top-level files. The application keeps its normal explicit CLI permissions and does not prompt for or store credentials. Interactive launches remain active until the application exits; the 240-second timeout applies to installation/verification subprocesses, not the running GUI or menu.
+
+**State validation:** Managed installation state (`state.json`) rejects duplicate JSON keys, nonstandard numeric constants, boolean schema versions, missing required fields and files over 256,000 bytes. Invalid state prevents install/update/rollback until inspected; it is not repaired or overwritten automatically.
 
 **Limitations:** Installation uses separate per-wheel virtual environments and atomically activates verified releases. The previous release remains available for rollback; interrupted installs can leave incomplete inactive environments that require repair. This is not a signed automatic updater or a substitute for live desktop/E2E verification. See [installation guidance](docs/INSTALLATION.md).
 
@@ -321,7 +323,7 @@ Remote push and PR creation are **not atomic**; a pushed branch may exist withou
 
 **Source:** [CLI](gh_agent/cli.py) · [Policy & Git](gh_agent/core.py) · [HTTP & model](gh_agent/services.py) · [Docker verification](gh_agent/verification.py) · [Tests](tests/test_agent.py) · [Offline runner](scripts/verify.py).
 
-**Compatibility:** Unpublished development package metadata **0.3.0.dev0** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
+**Compatibility:** Unpublished development package metadata **0.3.0.dev1** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
 
 <details>
 <summary><strong>Engineering references and upstream APIs</strong></summary>
