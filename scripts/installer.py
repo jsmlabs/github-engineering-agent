@@ -199,6 +199,24 @@ def status(target: Path) -> str:
                        "remote_checked": False}, sort_keys=True)
 
 
+def launch(target: Path, agent_args: list[str] | None = None) -> str:
+    """Start the active verified release, preserving every underlying CLI gate."""
+    target = validate_target(target)
+    state = read_state(target)
+    active = state["active"]
+    if active is None:
+        raise ValueError("No active release to launch")
+    slot = target / "releases" / active
+    verify_slot(slot, state["versions"][active])
+    arguments = list(agent_args or ["gui"])
+    if arguments and arguments[0] == "--":
+        arguments.pop(0)
+    if any(not isinstance(x, str) or "\x00" in x for x in arguments):
+        raise ValueError("Invalid agent arguments")
+    run_checked([str(python_in(slot)), "-m", "gh_agent", *arguments])
+    return "Active application process exited"
+
+
 def uninstall(target: Path, confirmation: str) -> str:
     target = validate_target(target)
     if confirmation != "UNINSTALL":
@@ -223,11 +241,12 @@ def uninstall(target: Path, confirmation: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Offline, user-level installation manager")
-    parser.add_argument("action", choices=("install", "update", "repair", "verify", "rollback", "status", "uninstall"))
+    parser.add_argument("action", choices=("install", "update", "repair", "verify", "rollback", "status", "launch", "uninstall"))
     parser.add_argument("--target", type=Path, default=default_target())
     parser.add_argument("--wheel", type=Path)
     parser.add_argument("--sha256", default="")
     parser.add_argument("--confirm", default="")
+    parser.add_argument("--agent-args", nargs=argparse.REMAINDER, default=None)
     args = parser.parse_args(argv)
     try:
         if args.action in ("install", "update", "repair"):
@@ -240,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
             result = rollback(args.target)
         elif args.action == "status":
             result = status(args.target)
+        elif args.action == "launch":
+            result = launch(args.target, args.agent_args)
         else:
             result = uninstall(args.target, args.confirm)
         print(result)
