@@ -6,6 +6,12 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Workspace awareness and approval-safe plan preparation
+
+- Add `workspace` with human-readable and JSON local Git readiness, clean/dirty reporting, optional origin identity verification, and credential-presence checks without revealing secret values or contacting a provider.
+- Add `prepare` for validated, explicit file-scope and output-path input, returning a safe JSON argv preview without executing a plan, authorizing upload, writing a proposal or querying GitHub/OpenAI.
+- Extend the bounded interactive menu with Workspace and Prepare options (0–8), regression tests, documentation and offline smoke coverage while preserving all existing authorization boundaries and package dependencies.
+
 ### Command discovery and local workflow dashboard
 
 - Add a searchable command catalog with task categories, explicit side-effect labels and optional JSON output for terminal or scripts.
