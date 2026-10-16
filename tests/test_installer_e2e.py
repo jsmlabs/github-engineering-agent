@@ -43,11 +43,15 @@ class InstallerE2ETests(unittest.TestCase):
             self.assertIn("0.2.0", installer.verify(target))
             self.assertIn("no reinstall", installer.install(target, first, first_hash))
             python = installer.python_in(target / "releases" / first_hash)
+            slot = target / "releases" / first_hash
             entry = subprocess.check_output(
                 [str(python), "-c", "import gh_agent; print(gh_agent.__file__)"],
-                text=True,
+                text=True, cwd=slot,
             ).strip()
-            Path(entry).with_name("__main__.py").unlink()
+            installed_entry = Path(entry).resolve()
+            if slot.resolve() not in installed_entry.parents:
+                self.fail("Refusing to alter a module outside the test installation")
+            installed_entry.with_name("__main__.py").unlink()
             with self.assertRaises(subprocess.CalledProcessError):
                 installer.verify(target)
             self.assertIn("0.2.0", installer.install(target, first, first_hash, repair=True))
