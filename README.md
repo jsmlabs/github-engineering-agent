@@ -26,6 +26,7 @@ Install once from **this agent repository** using `python -m pip install .`. The
 
 ~~~text
 gh-engineer
+gh-engineer gui
 gh-engineer menu
 gh-engineer workspace
 gh-engineer files --search app
@@ -38,6 +39,7 @@ gh-engineer doctor --repo OWNER/REPO
 | Command | Simple purpose | Side effects |
 | --- | --- | --- |
 | `gh-engineer` | Show the short home screen | None |
+| `gh-engineer gui` | Desktop window with status, file selection, plan preview and help | Local only; read-only; requires OS Tkinter/Tk and a graphical display |
 | `gh-engineer menu` | Numbered terminal menu for local checks, workflow guidance and status | Only local, read-only inspection; never runs a model or publishes |
 | `gh-engineer workspace --json` | Check branch, clean worktree, credential presence and Docker CLI without contacting any service | Local read-only inspection; no credential values printed |
 | `gh-engineer files --search app --limit 20` | Show eligible existing tracked paths for exact `--allowed-file` selection | No file contents or provider requests |
@@ -49,6 +51,8 @@ gh-engineer doctor --repo OWNER/REPO
 | `gh-engineer doctor --repo OWNER/REPO` | Check Python, Git, clean checkout and exact origin; credentials are presence-only | Local inspection; no network |
 | `gh-engineer next --proposal ../issue-123.json` | Suggest a safe next step from exact local proposal/receipt/verification state | Read-only; does not run the step |
 | `gh-engineer status --proposal ../issue-123.json` | Examine the recorded local state | Read-only; `--remote` adds GitHub lookups |
+
+**Graphical desktop app:** run `gh-engineer gui` (or `python -m gh_agent gui`) from the target checkout. The optional Tkinter window provides **Overview**, **Files**, **Plan preview** and **Help** tabs, file/directory pickers and clear local status output. It uses the existing read-only CLI validation, does not start a web server, and cannot upload sources, commit, or publish. Some operating systems require installing an OS Tk/Tkinter package or a graphical display; `gh-engineer menu` remains the fallback. Use `--checkout` and `--proposal` for initial paths. **The GUI preview is not approval to upload**; sensitive source must still be reviewed before invoking the CLI with explicit consent.
 
 **Interactive menu:** run `gh-engineer menu` in a regular terminal, choose a number from 0–10, and optionally provide a proposal JSON path. Choices include Guide, Doctor, Next step, Local status, Commands and a validated Proposal Dashboard. Choose **Workspace** for the Git preflight summary, **Prepare** to enter an explicitly scoped plan preview, **Files** to search eligible tracked paths or **Recipes** for examples. The file finder shows at most 50 paths per request and never reads their contents. Protected, unsupported and untracked paths are excluded. New files must be scoped explicitly in `prepare`; appearing in the file finder does not prove that uploading a file is safe. The preview returns JSON arguments, **not a shell command**; only a subsequent separately approved `plan --allow-source-upload` can send source data. The menu remembers the previous path only until exit; `0` or `q` quits. Use `gh-engineer menu --no-color` or set `NO_COLOR` for plain text. If standard input/output is not a terminal (CI, piping or automation), use `gh-engineer guide` or the individual commands instead. No extra package or curses dependency is required. Use `gh-engineer commands --search approval` or `--group work` to find an action; use `gh-engineer dashboard --proposal ../issue-123.json --json` for stable machine-readable stage data. `VERIFIED_LOCAL` means only that the saved commit-bound test report passed; an actual remote PR and its CI are **not** confirmed. `BLOCKED` means a recorded test failure or invalid report cannot be treated as a publishing pass.
 
