@@ -2,9 +2,15 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable implementation and documentation changes are grouped by release. **`Unreleased` is not a published package release.** The version declared in [`pyproject.toml`](pyproject.toml) remains **0.2.0**; documentation edits alone do not change it.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev0** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Launcher runtime fix and development metadata
+
+- Keep installed interactive GUI/menu sessions running until the application exits, instead of imposing the 240-second maintenance subprocess timeout; retain bounded installation and verification operations.
+- Add a mocked launch-contract regression test and refresh the verified #30 CI baseline documentation.
+- Advance package metadata from 0.2.0 to **0.3.0.dev0** (pre-release MINOR version reflecting cumulative unreleased CLI/GUI/installer features); synchronize badges and architecture references. No publication, migration, dependency or authorization change.
 
 ### Offline user-scoped installation manager (preview)
 
@@ -120,4 +126,4 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ---
 
-See [VERIFICATION.md](VERIFICATION.md) for executed CI/test evidence. Version and release metadata must be updated only when a release is intentionally prepared under repository policy.
+See [VERIFICATION.md](VERIFICATION.md) for executed CI/test evidence. Development package metadata may advance in reviewed changes, but publishing a version, tag or release remains a separately authorized process subject to verification and release gates.

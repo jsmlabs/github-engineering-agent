@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Security](../SECURITY.md) · [Verification](../VERIFICATION.md)
 
-**Implemented contract for package `0.2.0` (including unreleased hardening).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
+**Implemented contract for development package metadata `0.3.0.dev0` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
 
 ## System overview
 

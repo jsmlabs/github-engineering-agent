@@ -316,7 +316,9 @@ def launch(target: Path, agent_args: list[str] | None = None) -> str:
         arguments.pop(0)
     if any(not isinstance(x, str) or "\x00" in x for x in arguments):
         raise ValueError("Invalid agent arguments")
-    run_checked([str(python_in(slot)), "-m", "gh_agent", *arguments])
+    # A GUI or interactive menu may run until the operator closes it.
+    # Maintenance/verification subprocesses retain their bounded timeout.
+    subprocess.run([str(python_in(slot)), "-m", "gh_agent", *arguments], check=True)
     return "Active application process exited"
 
 
