@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import venv
 import zipfile
 
@@ -209,11 +210,16 @@ def _install_locked(target: Path, wheel: Path, digest: str, version: str, state:
         return f"Existing version {version} verified; no reinstall performed"
     if not python.is_file():
         venv.EnvBuilder(with_pip=True).create(slot / "venv")
-    # Source wheel is rechecked just before pip, though external callers must
-    # ensure the local source cannot be modified concurrently.
-    validate_wheel(wheel, digest)
-    run_checked([str(python), "-m", "pip", "install", "--no-index", "--no-deps",
-                 "--force-reinstall", str(wheel)])
+    # Install from an isolated copy rather than a user-editable source path.
+    # The copied bytes are independently checked before invoking pip.
+    with tempfile.TemporaryDirectory(prefix="gh-engineer-wheel-") as directory:
+        staged = Path(directory) / wheel.name
+        shutil.copyfile(wheel, staged)
+        _, _, staged_version = validate_wheel(staged, digest)
+        if staged_version != version:
+            raise ValueError("Release wheel metadata changed during staging")
+        run_checked([str(python), "-m", "pip", "install", "--no-index", "--no-deps",
+                     "--force-reinstall", str(staged)])
     verify_slot(slot, version)
     if state["active"] != digest:
         state["previous"] = state["active"]
