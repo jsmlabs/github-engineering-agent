@@ -22,7 +22,7 @@
 
 | Operation | Required authorization | Maximum intended effect |
 | --- | --- | --- |
-| `menu`, `files`, `recipes`, `commands`, `dashboard`, `workspace`, `prepare`, `guide`, `doctor`, `next` | No permission grants | Local navigation, command discovery or validated local state checks; never model or remote writes |
+| `gui`, `menu`, `files`, `recipes`, `commands`, `dashboard`, `workspace`, `prepare`, `guide`, `doctor`, `next` | No permission grants | Local navigation, command discovery or validated local state checks; never model or remote writes |
 | `plan` | `--allow-source-upload` and 1–12 explicit `--allowed-file` entries | Read issue and selected source; send bounded content to the chosen model; create a private proposal outside checkout |
 | `review` | None | Print full proposed diff/digest, **no modification** |
 | `apply` | `--approve` with the exact `--expected-sha256` from review | New local branch, edits to approved tracked files, commit and receipt |
@@ -30,6 +30,8 @@
 | `status` | None | Inspect local state; `--remote` adds read-only remote lookups |
 | `publish` | `--approve-publish` and PASS report or explicit no-test exception | Create-only branch push and **open PR (draft by default)** |
 | `run` | Upload, local-write and remote-publish approvals up front, plus verification configuration or no-test exception | Combined plan/apply/verify/publish **without human proposal-review pause** |
+
+The optional `gui` is a local Tkinter desktop process, not a web server. It runs only fixed read-only commands through an explicit allowlist, refuses upload, approval, remote and mutation flags, and does not display credentials. It must not be treated as a trusted authorization system; the existing CLI still independently enforces every permission before side effects. A graphical display and Tk package may be unavailable on headless hosts.
 
 The `files` command lists only paths of eligible tracked local files; it does not open their contents, assert that they are secret-free or allow access to untracked/protected files. Limit and search options bound displayed output, not the potential sensitivity of filenames. The `recipes` command shows static examples, never executes them or grants approval. Menu selections for either command are read-only.
 
