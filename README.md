@@ -29,12 +29,12 @@ python scripts/installer.py install --wheel /path/to/release.whl --sha256 EXPECT
 python scripts/installer.py verify
 python scripts/installer.py repair --wheel /path/to/release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
 python scripts/installer.py update --wheel /path/to/new-release.whl --sha256 EXPECTED_64_LOWERCASE_HEX
-python scripts/installer.py uninstall --confirm UNINSTALL
+python scripts/installer.py rollback\npython scripts/installer.py status\npython scripts/installer.py uninstall --confirm UNINSTALL
 ~~~
 
 On Windows, double-click `install-windows.cmd`; on macOS/Linux, run `sh ./install-unix.sh`. These launchers require preinstalled Python/Tk and never download the application or dependencies. On a graphical workstation, use `python scripts/installer_gui.py` for Install, Update/Repair, Verify and Uninstall actions. It uses OS Tkinter when available and runs operations off the UI thread. The managed directory defaults to the user's local application-data location. Installing into an existing unmarked directory is refused; uninstall requires a marker and refuses unexpected top-level files. The application keeps its normal explicit CLI permissions and does not prompt for or store credentials.
 
-**Limitations:** Update/repair currently reinstalls the selected local wheel in place; interrupted pip operations can require manual recovery. This is not an atomic installer, a signed automatic updater, a reversible rollback mechanism, or a substitute for live desktop/E2E verification. See [installation guidance](docs/INSTALLATION.md).
+**Limitations:** Installation uses separate per-wheel virtual environments and atomically activates verified releases. The previous release remains available for rollback; interrupted installs can leave incomplete inactive environments that require repair. This is not a signed automatic updater or a substitute for live desktop/E2E verification. See [installation guidance](docs/INSTALLATION.md).
 
 ## Start in terminal
 
