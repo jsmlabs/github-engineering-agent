@@ -2,9 +2,16 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev2** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev3** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Installer GUI input and status feedback
+
+- Reject nonhexadecimal or incorrectly sized SHA-256 inputs before starting a local installation worker; accept both hexadecimal letter cases.
+- Report which maintenance action completed or failed instead of a generic result state; add offline input-validation regression tests.
+- No additional network capabilities, privileges or dependency requirements; development metadata advances to **0.3.0.dev3** without a release.
+
 
 ### Offline wheel packaging verification
 

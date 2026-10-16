@@ -20,6 +20,10 @@
 
 **New verification gate proposed in this PR:** the existing seven offline regression jobs plus three OS-specific Python 3.11 wheel-build/install jobs. Only exact-commit CI evidence can establish that this new gate passes.
 
+## Installer GUI validation change (unreleased)
+
+This iteration adds offline unit coverage for checksum syntax and action-specific completion feedback. GUI display, accessibility, Windows/macOS/Linux interaction and live installation results have **not** been independently verified by this change alone. Version `0.3.0.dev3` is development metadata, not a published artifact.
+
 ## Recent change evidence
 
 | Scope | PR-head CI | Integrated target-branch evidence | What it establishes |
