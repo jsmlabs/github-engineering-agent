@@ -148,8 +148,12 @@ def main(argv: list[str] | None = None) -> int:
         if not selected_paths:
             show("Select 1–12 eligible tracked files from the Files tab.")
             return
+        number = issue.get().strip()
+        if not number.isdecimal() or not 1 <= len(number) <= 12 or int(number) < 1:
+            show("Enter a valid positive issue number (up to 12 digits).")
+            return
         args = ["--checkout", checkout.get(), "--repo", repo.get(),
-                "--issue", issue.get(), "--model", model.get(), "--output", destination.get()]
+                "--issue", number, "--model", model.get(), "--output", destination.get()]
         for name in selected_paths:
             args.extend(["--allowed-file", name])
         call("prepare", args)
