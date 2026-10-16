@@ -6,6 +6,13 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ## Unreleased
 
+### Offline user-scoped installation manager (preview)
+
+- Add a local-wheel installation, verification, repair/update and guarded uninstallation CLI plus optional Tkinter maintenance GUI.
+- Require an explicit SHA-256 matching a trusted local wheel; preserve CLI permission boundaries and avoid automatic network downloads.
+- Add regression coverage, installation/recovery documentation and disclose lack of atomic rollback or release discovery.
+
+
 ### Optional GUI-first desktop workflow
 
 - Add an optional Tkinter desktop application (`gh-engineer gui`) with workspace overview, eligible-file multiselect, validated plan preview and help tabs.
