@@ -9,14 +9,38 @@ import sys
 
 READ_ONLY = frozenset({"workspace", "files", "dashboard", "prepare", "commands", "recipes", "guide"})
 
+# Arguments are data, never commands. No permission/remote switches are exposed.
+OPTIONS = {
+    "workspace": frozenset({"--checkout", "--repo"}),
+    "files": frozenset({"--checkout", "--repo", "--search", "--limit"}),
+    "dashboard": frozenset({"--checkout", "--proposal"}),
+    "prepare": frozenset({"--checkout", "--repo", "--issue", "--model", "--output", "--allowed-file"}),
+    "commands": frozenset({"--group", "--search"}),
+    "recipes": frozenset({"--topic"}),
+    "guide": frozenset(),
+}
 
-def inspect(action: str, args: list[str] | tuple[str, ...] = ()) -> dict:
-    """Run an explicit local-only CLI command and return its result."""
+
+def validate_arguments(action: str, args: list[str] | tuple[str, ...]) -> None:
+    """Fail closed before invoking the CLI, including for unexpected options."""
     if action not in READ_ONLY or type(args) not in (list, tuple) or any(type(x) is not str for x in args):
         raise ValueError("Only known read-only actions and string arguments are allowed")
     if any(x in {"--allow-source-upload", "--approve", "--approve-local",
                  "--approve-publish", "--remote"} for x in args):
         raise ValueError("GUI cannot grant write, upload or remote permissions")
+    allowed = OPTIONS[action]
+    if len(args) % 2:
+        raise ValueError("GUI arguments must be option/value pairs")
+    for i in range(0, len(args), 2):
+        option, value = args[i:i + 2]
+        if option not in allowed or not value or value.startswith("--") or any(ord(c) < 32 for c in value):
+            raise ValueError("Unexpected or invalid GUI option/value")
+
+
+
+def inspect(action: str, args: list[str] | tuple[str, ...] = ()) -> dict:
+    """Run an explicit local-only CLI command and return its result."""
+    validate_arguments(action, args)
     from .cli import main as cli_main
     output, errors = StringIO(), StringIO()
     argv = [action, *args]
@@ -52,12 +76,13 @@ def main(argv: list[str] | None = None) -> int:
         print("No graphical display. Use 'gh-engineer menu' in a terminal.", file=sys.stderr)
         return 2
     root.title("GitHub Engineering Agent · Desktop")
-    root.geometry("1000x720")
+    root.geometry("1060x760")
     root.minsize(720, 500)
     style = ttk.Style(root)
     if "clam" in style.theme_names():
         style.theme_use("clam")
-    style.configure("Heading.TLabel", font=("TkDefaultFont", 19, "bold"))
+    style.configure("Heading.TLabel", font=("TkDefaultFont", 17, "bold"))
+    style.configure("Section.TLabel", font=("TkDefaultFont", 11, "bold"))
     style.configure("TButton", padding=(10, 7))
     checkout = tk.StringVar(value=str(Path(options.checkout).resolve()))
     proposal = tk.StringVar(value=options.proposal)
@@ -85,14 +110,24 @@ def main(argv: list[str] | None = None) -> int:
                 variable.set(value)
         ttk.Button(line, text="Browse", command=browse).pack(side="left")
     tabs = ttk.Notebook(frame)
-    tabs.pack(fill="both", expand=True, pady=10)
+    tabs.pack(fill="both", expand=True, pady=(8, 12))
+    root.bind("<Control-Key-1>", lambda _event: tabs.select(0))
+    root.bind("<Control-Key-2>", lambda _event: tabs.select(1))
+    root.bind("<Control-Key-3>", lambda _event: tabs.select(2))
+    root.bind("<Control-Key-4>", lambda _event: tabs.select(3))
     panels = {}
     for label in ("Overview", "Files", "Plan preview", "Help"):
         page = ttk.Frame(tabs, padding=15)
         tabs.add(page, text=label)
         panels[label] = page
-    output = tk.Text(frame, height=10, state="disabled", wrap="word", font=("TkFixedFont", 10))
-    output.pack(fill="both", expand=False, pady=(4, 0))
+    ttk.Label(frame, text="LOCAL RESULT  ·  Select text or copy the complete result", style="Section.TLabel").pack(anchor="w")
+    result_frame = ttk.Frame(frame)
+    result_frame.pack(fill="both", expand=True, pady=(4, 0))
+    output = tk.Text(result_frame, height=10, state="disabled", wrap="word", font=("TkFixedFont", 10))
+    output.pack(side="left", fill="both", expand=True)
+    output_scroll = ttk.Scrollbar(result_frame, orient="vertical", command=output.yview)
+    output_scroll.pack(side="right", fill="y")
+    output.configure(yscrollcommand=output_scroll.set)
     output.configure(takefocus=True)
     status = tk.StringVar(value="Ready · local inspection only")
     footer = ttk.Frame(frame)
@@ -134,8 +169,13 @@ def main(argv: list[str] | None = None) -> int:
     top = ttk.Frame(files_page)
     top.pack(fill="x", pady=8)
     ttk.Entry(top, textvariable=filter_text).pack(side="left", fill="x", expand=True)
-    items = tk.Listbox(files_page, selectmode="extended", height=12, exportselection=False)
-    items.pack(fill="both", expand=True)
+    list_frame = ttk.Frame(files_page)
+    list_frame.pack(fill="both", expand=True)
+    items = tk.Listbox(list_frame, selectmode="extended", height=12, exportselection=False)
+    items.pack(side="left", fill="both", expand=True)
+    file_scroll = ttk.Scrollbar(list_frame, orient="vertical", command=items.yview)
+    file_scroll.pack(side="right", fill="y")
+    items.configure(yscrollcommand=file_scroll.set)
     counter = ttk.Label(files_page, text="Search local paths to begin")
     counter.pack(anchor="w", pady=5)
     def refresh():
@@ -168,6 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         show({"selected_paths": paths, "uploaded": False})
         tabs.select(panels["Plan preview"])
     ttk.Button(files_page, text="Use selected files in plan preview", command=select).pack(anchor="w", pady=6)
+    items.bind("<Double-Button-1>", lambda _event: select())
 
     preview = panels["Plan preview"]
     ttk.Label(preview, text="Preview a plan · Never execute", style="Heading.TLabel").pack(anchor="w", pady=5)
@@ -201,6 +242,7 @@ def main(argv: list[str] | None = None) -> int:
                            ("Task examples", "recipes")):
         ttk.Button(help_panel, text=label, command=lambda c=command: call(c)).pack(anchor="w", pady=6)
     root.bind("<Escape>", lambda _event: root.focus_set())
+    ttk.Label(frame, text="Shortcuts: Ctrl+1–4 switch tabs · Ctrl+Shift+C copies result · Enter searches files").pack(anchor="w", pady=(4, 0))
     show("Welcome. Choose an overview, search eligible files or preview a scoped plan.\nNo action has been started.")
     root.mainloop()
     return 0
