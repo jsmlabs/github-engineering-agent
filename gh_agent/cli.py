@@ -382,10 +382,98 @@ def run_auto(args) -> None:
 
 
 
+
+def workspace(args) -> None:
+    """Summarize local Git readiness without network access or disclosing URLs."""
+    checkout = Path(args.checkout).resolve(strict=False)
+    if not checkout.is_dir():
+        raise AgentError("Checkout directory does not exist")
+    if not shutil.which("git"):
+        raise AgentError("Git is not available on PATH")
+    root = Path(run_git(checkout, "rev-parse", "--show-toplevel")).resolve(strict=True)
+    if root != checkout:
+        raise AgentError("Specify the Git worktree root with --checkout")
+    branch = run_git(root, "branch", "--show-current")
+    head = run_git(root, "rev-parse", "HEAD")
+    clean = not bool(run_git(root, "status", "--porcelain", "--untracked-files=all"))
+    identity = "NOT_CHECKED"
+    if getattr(args, "repo", None):
+        require_repo(args.repo)
+        if clean:
+            assert_checkout(root, args.repo, "", require_base=False)
+            identity = "MATCHED_LOCAL"
+        else:
+            identity = "NOT_CHECKED_DIRTY"
+    snapshot = {
+        "schema": 1, "branch": branch or "DETACHED", "head": head, "clean": clean,
+        "ready_local": bool(branch) and clean, "origin_identity": identity,
+        "credentials": {"github": bool(os.environ.get("GITHUB_TOKEN")),
+                        "openai": bool(os.environ.get("OPENAI_API_KEY"))},
+        "docker_cli": bool(shutil.which("docker")), "network_checked": False,
+    }
+    if getattr(args, "json", False):
+        print(json.dumps(snapshot, sort_keys=True))
+        return
+    print("WORKSPACE OVERVIEW (local checks only)")
+    print(f"Branch: {snapshot['branch']}")
+    print(f"Commit: {head[:12]}")
+    print(f"Changes: {'CLEAN' if clean else 'UNCOMMITTED OR UNTRACKED'}")
+    print(f"Origin identity: {identity}")
+    print(f"Local Git readiness: {'READY' if snapshot['ready_local'] else 'NOT READY'}")
+    print("Credentials: GitHub {0}; OpenAI {1} (presence only)".format(
+        "configured" if snapshot["credentials"]["github"] else "missing",
+        "configured" if snapshot["credentials"]["openai"] else "missing"))
+    print(f"Docker command: {'found' if snapshot['docker_cli'] else 'not found'} (not tested)")
+    print("No remote calls, permissions or publication were checked.")
+
+
+def prepare(args) -> None:
+    """Validate operator inputs and preview argv, never grant source disclosure."""
+    repo = require_repo(args.repo)
+    if type(args.issue) is not int or args.issue <= 0:
+        raise AgentError("Issue must be a positive integer")
+    model = args.model
+    if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,100}", model):
+        raise AgentError("Invalid model identifier")
+    checkout = Path(args.checkout).resolve(strict=True)
+    assert_checkout(checkout, repo, "", require_base=False)
+    scope = args.allowed_file
+    validate_selection(checkout, scope, set(tracked_sources(checkout)))
+    destination = Path(args.output).resolve(strict=False)
+    outside_checkout(checkout, destination)
+    if destination.exists() or not destination.parent.is_dir():
+        raise AgentError("Output must not exist and its parent directory must exist")
+    argv = ["gh-engineer", "plan", "--repo", repo, "--issue", str(args.issue),
+            "--model", model, "--checkout", str(checkout)]
+    for file in scope:
+        argv.extend(["--allowed-file", file])
+    argv.extend(["--output", str(destination)])
+    preview = {
+        "schema": 1, "action": "PLAN_PREVIEW_ONLY", "argv": argv,
+        "allowed_files": list(scope), "source_upload_authorized": False,
+        "required_explicit_flag": "--allow-source-upload",
+        "network_checked": False, "executed": False,
+    }
+    if getattr(args, "json", False):
+        print(json.dumps(preview, ensure_ascii=True))
+        return
+    print("PLAN PREVIEW (NOT EXECUTED)")
+    print(f"Repository: {repo} | Issue: #{args.issue} | Model: {model}")
+    print(f"Scoped files ({len(scope)}): {', '.join(scope)}")
+    print(f"Proposal destination: {destination}")
+    print("Arguments (JSON array, NOT a shell command):")
+    print(json.dumps(argv, ensure_ascii=True, indent=2))
+    print("No upload or model call was performed. Review source sensitivity first.")
+    print("Only after separate authorization, add --allow-source-upload to the plan invocation.")
+    print("The actual plan still independently validates Git state, scope and remote identity.")
+
+
 COMMANDS = (
     ("menu", "Explore read-only terminal navigation", "start", "local"),
     ("guide", "See the reviewed five-step workflow", "start", "local"),
     ("doctor", "Check workstation and Git checkout locally", "start", "local"),
+    ("workspace", "Inspect current Git checkout readiness and credential presence", "start", "local"),
+    ("prepare", "Validate and preview a scoped plan without uploading", "start", "local"),
     ("commands", "Browse and search all supported commands", "start", "local"),
     ("dashboard", "Inspect proposal progress and verification locally", "inspect", "local"),
     ("next", "Find the next safe step from proposal state", "inspect", "local"),
@@ -552,17 +640,19 @@ def menu(args) -> None:
         print("  4  Status          Inspect saved local receipt")
         print("  5  Commands        Searchable command reference")
         print("  6  Dashboard       Validated proposal progress")
+        print("  7  Workspace       Git state and readiness")
+        print("  8  Prepare         Guided plan preview (never executes)")
         print("  0  Exit")
         try:
-            choice = input("Choose [0-6]: ").strip().lower()
+            choice = input("Choose [0-8]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nMenu closed. No action was started.")
             return
         if choice in {"0", "q", "quit", "exit"}:
             print("Menu closed. No action was started.")
             return
-        if choice not in {"1", "2", "3", "4", "5", "6"}:
-            print("Unknown option. Enter a number from 0 to 6.")
+        if choice not in {"1", "2", "3", "4", "5", "6", "7", "8"}:
+            print("Unknown option. Enter a number from 0 to 8.")
             continue
         try:
             if choice == "1":
@@ -585,8 +675,22 @@ def menu(args) -> None:
                     status(local_args)
                 else:
                     dashboard(local_args)
-            else:
+            elif choice == "5":
                 commands(SimpleNamespace(group="all", search="", json=False))
+            elif choice == "7":
+                workspace(SimpleNamespace(checkout=checkout, repo=getattr(args, "repo", None),
+                                          json=False))
+            else:
+                repo = getattr(args, "repo", None) or input("Repository OWNER/REPO: ").strip()
+                issue_text = input("Issue number: ").strip()
+                model = input("Model identifier: ").strip()
+                files = input("Allowed paths (space-separated, no globs): ").split()
+                output = input("Proposal JSON destination (outside checkout): ").strip()
+                if not issue_text.isdecimal() or len(issue_text) > 12:
+                    raise AgentError("Issue must contain 1-12 decimal digits")
+                prepare(SimpleNamespace(checkout=checkout, repo=repo, issue=int(issue_text),
+                                        model=model, allowed_file=files, output=output,
+                                        json=False))
         except (AgentError, FileNotFoundError, PermissionError) as exc:
             print("CHECK STOPPED:", str(exc))
         except (EOFError, KeyboardInterrupt):
@@ -604,6 +708,8 @@ def overview(args=None) -> None:
     print("  gh-engineer menu                   Interactive, read-only local dashboard")
     print("  gh-engineer guide                  Five-step, copyable workflow")
     print("  gh-engineer doctor                 Check this workstation and checkout")
+    print("  gh-engineer workspace              View local Git readiness")
+    print("  gh-engineer prepare --help         Preview a scoped plan without uploading")
     print("  gh-engineer commands               Browse tasks and permission levels")
     print("  gh-engineer plan --help            Start from an approved GitHub issue")
     print()
@@ -739,6 +845,21 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument("--proposal", required=True, help="Existing proposal JSON outside checkout")
     p.add_argument("--json", action="store_true", help="Emit local stage as JSON for scripts")
     p.set_defaults(func=dashboard)
+    p = sub.add_parser("workspace", help="Show local Git readiness without network calls")
+    p.add_argument("--checkout", default=".", help="Target checkout root")
+    p.add_argument("--repo", help="Optional OWNER/REPO for clean-checkout origin identity check")
+    p.add_argument("--json", action="store_true", help="Machine-readable local snapshot")
+    p.set_defaults(func=workspace)
+    p = sub.add_parser("prepare", help="Validate and preview a scoped plan; never execute it")
+    p.add_argument("--checkout", default=".", help="Target checkout root")
+    p.add_argument("--repo", required=True, help="Explicit GitHub OWNER/REPO")
+    p.add_argument("--issue", required=True, type=int, help="Open issue number (not fetched)")
+    p.add_argument("--model", required=True, help="Model identifier; no model is called")
+    p.add_argument("--allowed-file", action="append", required=True,
+                   help="Exact selected path; repeat for up to 12 files")
+    p.add_argument("--output", required=True, help="Nonexistent JSON path outside checkout")
+    p.add_argument("--json", action="store_true", help="Emit JSON argv with no approval flag")
+    p.set_defaults(func=prepare)
     p = sub.add_parser("guide", help="Show the recommended five-step workflow with examples")
     p.set_defaults(func=guide)
     p = sub.add_parser("doctor", help="Check Python, Git and checkout without network or mutations")
