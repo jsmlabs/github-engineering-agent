@@ -58,6 +58,18 @@ def inspect(action: str, args: list[str] | tuple[str, ...] = ()) -> dict:
     return {"ok": True, "data": data}
 
 
+def selection_is_current(paths: list[str], chosen_checkout: str, checkout: str) -> bool:
+    """Require a nonempty scope selected for the current resolved checkout."""
+    return bool(paths) and chosen_checkout == str(Path(checkout).resolve(strict=False))
+
+
+def format_result(message: object) -> str:
+    """Render structured read-only results as stable, readable Unicode text."""
+    if isinstance(message, str):
+        return message
+    return json.dumps(message, indent=2, ensure_ascii=False, sort_keys=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     parser = argparse.ArgumentParser(prog="gh-engineer gui")
@@ -120,7 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         page = ttk.Frame(tabs, padding=15)
         tabs.add(page, text=label)
         panels[label] = page
-    ttk.Label(frame, text="LOCAL RESULT  ·  Select text or copy the complete result", style="Section.TLabel").pack(anchor="w")
+    result_header = ttk.Frame(frame)
+    result_header.pack(fill="x")
+    ttk.Label(result_header, text="LOCAL RESULT  ·  Read-only output", style="Section.TLabel").pack(side="left")
     result_frame = ttk.Frame(frame)
     result_frame.pack(fill="both", expand=True, pady=(4, 0))
     output = tk.Text(result_frame, height=10, state="disabled", wrap="word", font=("TkFixedFont", 10))
@@ -140,11 +154,15 @@ def main(argv: list[str] | None = None) -> int:
             root.clipboard_append(value)
             status.set("Result copied to clipboard")
     ttk.Button(footer, text="Copy result", command=copy_result).pack(side="right")
+    def clear_result():
+        show("")
+        status.set("Result cleared · no repository changes")
+    ttk.Button(footer, text="Clear result", command=clear_result).pack(side="right", padx=(0, 8))
     root.bind("<Control-Shift-C>", lambda _event: copy_result())
     def show(message):
         output.configure(state="normal")
         output.delete("1.0", "end")
-        output.insert("1.0", message if isinstance(message, str) else json.dumps(message, indent=2))
+        output.insert("1.0", format_result(message))
         output.configure(state="disabled")
     def call(action, args=()):
         status.set(f"Checking {action} locally…")
@@ -196,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     ttk.Button(top, text="Search", command=refresh).pack(side="left", padx=7)
     filter_text_entry = top.winfo_children()[0]
     filter_text_entry.bind("<Return>", lambda _event: refresh())
+    ttk.Label(files_page, text="Use Ctrl/Shift to select multiple paths (maximum 12). Results contain paths only.").pack(anchor="w")
     def select():
         paths = [items.get(i) for i in items.curselection()]
         if not 1 <= len(paths) <= 12:
@@ -208,6 +227,11 @@ def main(argv: list[str] | None = None) -> int:
         show({"selected_paths": paths, "uploaded": False})
         tabs.select(panels["Plan preview"])
     ttk.Button(files_page, text="Use selected files in plan preview", command=select).pack(anchor="w", pady=6)
+    def update_selection_count(_event=None):
+        count = len(items.curselection())
+        if count:
+            status.set(f"{count} path(s) highlighted · select 1–12 for preview")
+    items.bind("<<ListboxSelect>>", update_selection_count)
     items.bind("<Double-Button-1>", lambda _event: select())
 
     preview = panels["Plan preview"]
@@ -219,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
         ttk.Label(line, text=label, width=24).pack(side="left")
         ttk.Entry(line, textvariable=value).pack(side="left", fill="x", expand=True)
     def prepare_preview():
-        if not selected_paths or selected_checkout != str(Path(checkout.get()).resolve(strict=False)):
+        if not selection_is_current(selected_paths, selected_checkout, checkout.get()):
             selected_paths.clear()
             show("File selection is missing or checkout changed. Search and select eligible files again.")
             status.set("Selection requires refresh")
@@ -234,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
             args.extend(["--allowed-file", name])
         call("prepare", args)
     ttk.Button(preview, text="Validate and preview only", command=prepare_preview).pack(anchor="w", pady=10)
+    ttk.Label(preview, text="Preview only: no network, source upload or file changes.").pack(anchor="w")
     ttk.Label(preview, text="The output omits upload approval; use the reviewed CLI workflow separately.").pack(anchor="w")
 
     help_panel = panels["Help"]

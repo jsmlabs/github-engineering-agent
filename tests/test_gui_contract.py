@@ -41,6 +41,18 @@ class GuiContractTests(unittest.TestCase):
             with self.subTest(action=action, args=args), self.assertRaises(ValueError):
                 gui.validate_arguments(action, args)
 
+    def test_result_formatting_handles_unicode_and_stable_keys(self):
+        self.assertEqual(gui.format_result("ready"), "ready")
+        self.assertEqual(gui.format_result({"z": "Grün", "a": 1}),
+                         '{\n  "a": 1,\n  "z": "Grün"\n}')
+
+    def test_selection_tracks_resolved_checkout(self):
+        from pathlib import Path
+        checkout = str(Path(".").resolve())
+        self.assertFalse(gui.selection_is_current([], checkout, checkout))
+        self.assertTrue(gui.selection_is_current(["src/app.py"], checkout, checkout))
+        self.assertFalse(gui.selection_is_current(["src/app.py"], checkout, "../another-checkout"))
+
     def test_blocked_command_never_reaches_cli(self):
         with patch("gh_agent.cli.main") as cli:
             with self.assertRaises(ValueError):
