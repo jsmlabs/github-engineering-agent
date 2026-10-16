@@ -8,7 +8,7 @@
 
 ## One-click entry points
 
-- Windows 10/11: double-click `install-windows.cmd` from the extracted repository. It opens the optional Tk maintenance window when Python/Tk are available.
+- Windows 10/11: double-click `install-windows.cmd` from the extracted repository. It opens the optional Tk maintenance dashboard when Python/Tk are available. Progress is shown while a task runs and closing the window is disabled until the task completes.
 - macOS/Linux: run `sh ./install-unix.sh` from the repository root.
 - After installation, use `run-agent.cmd` on Windows or `sh ./run-agent.sh` on macOS/Linux to launch the active verified release. Both setup launchers are frontend entry points only. They do not download or install Python, Git or release files; supply a trusted local wheel and checksum in the interface.
 
