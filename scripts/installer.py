@@ -176,6 +176,30 @@ def verify_slot(slot: Path, expected_version: str) -> None:
         raise ValueError("Installed version does not match expected release")
 
 
+def preview(target: Path, wheel: Path, digest: str) -> str:
+    """Show installation intent without writing files or contacting a service."""
+    target = validate_target(target)
+    _, digest, candidate_version = validate_wheel(wheel, digest)
+    if target.exists():
+        state = read_state(target)
+    else:
+        state = {"active": None, "previous": None, "versions": {}}
+    active, previous = state["active"], state["previous"]
+    return json.dumps({
+        "action": "PREVIEW_ONLY",
+        "target": str(target),
+        "candidate_version": candidate_version,
+        "candidate_sha256": digest,
+        "active_version": state["versions"].get(active),
+        "previous_version": state["versions"].get(previous),
+        "already_installed": active == digest,
+        "source_uploaded": False,
+        "executed": False,
+        "remote_checked": False,
+    }, sort_keys=True)
+
+
+
 def install(target: Path, wheel: Path, digest: str) -> str:
     target = validate_target(target)
     wheel, digest, version = validate_wheel(wheel, digest)
@@ -335,7 +359,7 @@ def _uninstall_locked(target: Path) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Offline, user-level installation manager")
-    parser.add_argument("action", choices=("install", "update", "repair", "verify", "rollback", "status", "launch", "uninstall"))
+    parser.add_argument("action", choices=("preview", "install", "update", "repair", "verify", "rollback", "status", "launch", "uninstall"))
     parser.add_argument("--target", type=Path, default=default_target())
     parser.add_argument("--wheel", type=Path)
     parser.add_argument("--sha256", default="")
@@ -343,10 +367,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--agent-args", nargs=argparse.REMAINDER, default=None)
     args = parser.parse_args(argv)
     try:
-        if args.action in ("install", "update", "repair"):
+        if args.action in ("preview", "install", "update", "repair"):
             if args.wheel is None:
                 raise ValueError("--wheel and --sha256 are required")
-            result = install(args.target, args.wheel, args.sha256)
+            result = (preview(args.target, args.wheel, args.sha256) if args.action == "preview"
+                      else install(args.target, args.wheel, args.sha256))
         elif args.action == "verify":
             result = verify(args.target)
         elif args.action == "rollback":
