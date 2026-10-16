@@ -95,6 +95,8 @@ def python_in(slot: Path) -> Path:
 
 
 def require_managed(target: Path) -> None:
+    if target.is_symlink() or (target / ".gh-engineer-managed").is_symlink():
+        raise ValueError("Symlinked managed installation is not allowed")
     if not (target / ".gh-engineer-managed").is_file():
         raise ValueError("No managed installation exists")
     if (target / ".gh-engineer-managed").read_text(encoding="utf-8") != MARKER:
@@ -163,7 +165,11 @@ def install(target: Path, wheel: Path, digest: str) -> str:
         state = read_state(target)
     else:
         target.mkdir(parents=True)
-        marker.write_text(MARKER, encoding="utf-8")
+        try:
+            marker.write_text(MARKER, encoding="utf-8")
+        except BaseException:
+            target.rmdir()
+            raise
         state = read_state(target)
     with operation_lock(target):
         return _install_locked(target, wheel, digest, version, state)
@@ -172,8 +178,12 @@ def install(target: Path, wheel: Path, digest: str) -> str:
 def _install_locked(target: Path, wheel: Path, digest: str, version: str, state: dict) -> str:
     slot = target / "releases" / digest
     if slot.exists():
-        if not (slot / ".slot-managed").is_file() or (slot / ".slot-managed").read_text() != SLOT_MARKER:
+        if (not slot.is_dir() or slot.is_symlink()
+                or not (slot / ".slot-managed").is_file()
+                or (slot / ".slot-managed").read_text() != SLOT_MARKER):
             raise ValueError("Existing release directory is not managed")
+        if any(item.name not in {"venv", ".slot-managed"} for item in slot.iterdir()):
+            raise ValueError("Unexpected release files; refusing modification")
     else:
         slot.mkdir(parents=True)
         (slot / ".slot-managed").write_text(SLOT_MARKER, encoding="utf-8")
