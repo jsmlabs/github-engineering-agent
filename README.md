@@ -8,7 +8,7 @@ A lightweight Python CLI for scoped AI-generated edits, deterministic validation
 
 [![Offline verification](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml/badge.svg)](https://github.com/jsmlabs/github-engineering-agent/actions/workflows/offline-verification.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)
-![Unreleased development metadata v0.3.0.dev5](https://img.shields.io/badge/package-0.3.0.dev5--unreleased-64748b)
+![Unreleased development metadata v0.3.0.dev6](https://img.shields.io/badge/package-0.3.0.dev6--unreleased-64748b)
 ![Reference implementation](https://img.shields.io/badge/maturity-reference-64748b)
 
 **`plan` → `review` → `apply` → `verify` → `publish`**
@@ -327,9 +327,11 @@ Remote push and PR creation are **not atomic**; a pushed branch may exist withou
 
 **Worker recovery:** Unexpected local worker errors now yield a generic actionable failure instead of leaving the desktop permanently busy. During a running check, a second file search no longer clears an existing scoped selection. Closing is explicitly blocked until the current bounded check has completed.
 
+**Activity feedback:** The local desktop displays an indeterminate progress indicator during an active inspection and temporarily disables competing inspection actions. Status labels identify local success or failure without implying remote checks.
+
 **Desktop responsiveness:** Local GUI inspections now execute in a bounded, isolated Python subprocess on a worker thread; Tkinter receives results on its own event loop. Only one inspection runs at a time and stale file searches are discarded. This does not add remote approvals or execution capabilities.
 
-**Compatibility:** Unpublished development package metadata **0.3.0.dev5** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
+**Compatibility:** Unpublished development package metadata **0.3.0.dev6** (previous release baseline **0.2.0**), Python **3.11+**, standard-library runtime. Proposals/receipts use **schema 2**; verification reports use **schema 1**. Old v0.1.0/schema-1 proposals cannot be reused; no automatic migration is provided. No hosted service, scheduler, automatic target-test discovery, merge or deployment.
 
 <details>
 <summary><strong>Engineering references and upstream APIs</strong></summary>
