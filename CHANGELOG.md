@@ -8,7 +8,7 @@ Notable implementation and documentation changes are grouped by release. **`Unre
 
 ### Offline user-scoped installation manager (preview)
 
-- Add a local-wheel installation, verification, repair/update and guarded uninstallation CLI plus optional Tkinter maintenance GUI.
+- Add a local-wheel installation, verification, isolated release update/repair, verified rollback and guarded uninstallation CLI plus optional Tkinter maintenance GUI.
 - Require an explicit SHA-256 matching a trusted local wheel; preserve CLI permission boundaries and avoid automatic network downloads.
 - Add regression coverage, installation/recovery documentation and disclose lack of atomic rollback or release discovery.
 
