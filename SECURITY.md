@@ -7,7 +7,7 @@
 
 ## Installer security scope
 
-The optional installation manager accepts only a user-provided local wheel and independently provided SHA-256. It installs into a dedicated user-level virtual environment, never requests secrets or privilege elevation, and refuses unmanaged installation paths and unknown top-level files on removal. **A matching SHA-256 does not authenticate the publisher.** The manager currently does not provide atomic installation, signed release provenance, automatic trusted update discovery, or rollback; treat it as a preview and audit wheel origin before execution. See [installation guidance](docs/INSTALLATION.md).
+The optional installation manager accepts only a user-provided local wheel and independently provided SHA-256. It installs into a dedicated user-level virtual environment, never requests secrets or privilege elevation, and refuses unmanaged installation paths and unknown top-level files on removal. **A matching SHA-256 does not authenticate the publisher.** The manager atomically switches verified local release state and retains the previous environment, but does not provide signed release provenance, automatic trusted update discovery, or complete transaction isolation; treat it as a preview and audit wheel origin before execution. See [installation guidance](docs/INSTALLATION.md).
 
 ## Security at a glance
 
