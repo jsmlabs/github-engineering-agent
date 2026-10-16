@@ -166,7 +166,7 @@ GitHub Actions runs the offline checks on Ubuntu, macOS and Windows with Python 
 
 The installed entry point is also `gh-engineer`. The runtime uses Python's standard library; package installation may require build tooling. `scripts/verify.py` checks compilation, offline unit tests and CLI help — **not live services**.
 
-**Packaging verification:** `python scripts/verify_package.py` builds a wheel from a disposable source snapshot without contacting package indexes, inspects wheel metadata and CLI entry points, installs into a temporary isolated virtual environment, and tests both `python -m gh_agent --help` and `gh-engineer --help`. A separately reported three-OS CI packaging matrix complements the seven existing offline unit-test jobs; it requires preinstalled build tooling and does not publish a release, prove provenance, or exercise a live model/GitHub workflow.
+**Packaging verification:** `python scripts/verify_package.py` builds a wheel from a disposable source snapshot without contacting package indexes, inspects wheel metadata and CLI entry points, installs into a temporary isolated virtual environment, and tests both `python -m gh_agent --help` and `gh-engineer --help`. A separately reported three-OS CI packaging matrix complements the seven existing offline unit-test jobs. CI first bootstraps exact-version, SHA-256-hash-pinned build tools from the package index; the wheel build and temporary installation then run with indexes disabled. No wheel is published, and passing checks do not prove publisher provenance or live model/GitHub compatibility.
 
 ### 3. Plan, inspect and approve
 
