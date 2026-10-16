@@ -11,7 +11,7 @@ The optional installation manager accepts only a user-provided local wheel and i
 
 ## Offline distribution verification
 
-The packaging gate builds a wheel from a disposable source snapshot with package indexes disabled, validates wheel metadata/entry points and launches an isolated installed CLI. It runs only in temporary directories and uploads no artifacts. The gate is **not** a signature, trusted publisher assertion, software-bill-of-materials attestation or authorization to release. Source packaging executes a configured build backend; only trusted repository changes and build tools may run in CI.
+The packaging gate first bootstraps exact-version, SHA-256-locked build wheels from the package index in CI (the only network-dependent package step). It then builds a wheel from a disposable source snapshot with package indexes disabled, validates wheel metadata/entry points and launches an isolated installed CLI. It runs only in temporary directories and uploads no artifacts. The gate is **not** a signature, trusted publisher assertion, software-bill-of-materials attestation or authorization to release. Source packaging executes a configured build backend; only trusted repository changes and build tools may run in CI.
 
 ## Security at a glance
 
