@@ -7,6 +7,7 @@ are never relocated. The previous environment survives an update for rollback.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -36,11 +37,31 @@ def default_target() -> Path:
 
 
 def validate_target(target: Path) -> Path:
-    path = target.expanduser().resolve(strict=False)
+    original = target.expanduser().absolute()
+    if original.is_symlink():
+        raise ValueError("Refusing a symlink installation target")
+    path = original.resolve(strict=False)
     home = Path.home().resolve()
     if path == home or path == Path(path.anchor) or home not in path.parents:
         raise ValueError("Installation must be in a dedicated directory under your home")
     return path
+
+
+
+@contextmanager
+def operation_lock(target: Path):
+    """Serialize state-changing operations, failing closed on an existing lock."""
+    lock = target / ".installer.lock"
+    try:
+        with lock.open("x", encoding="utf-8") as handle:
+            handle.write("installer operation in progress\n")
+        yield
+    except FileExistsError as exc:
+        raise ValueError("Another installation operation is active; inspect lock before retry") from exc
+    finally:
+        # Never remove an existing lock owned by another process.
+        if "handle" in locals() and lock.is_file():
+            lock.unlink()
 
 
 def validate_wheel(path: Path, expected_sha256: str) -> tuple[Path, str, str]:
@@ -144,6 +165,11 @@ def install(target: Path, wheel: Path, digest: str) -> str:
         target.mkdir(parents=True)
         marker.write_text(MARKER, encoding="utf-8")
         state = read_state(target)
+    with operation_lock(target):
+        return _install_locked(target, wheel, digest, version, state)
+
+
+def _install_locked(target: Path, wheel: Path, digest: str, version: str, state: dict) -> str:
     slot = target / "releases" / digest
     if slot.exists():
         if not (slot / ".slot-managed").is_file() or (slot / ".slot-managed").read_text() != SLOT_MARKER:
@@ -180,6 +206,11 @@ def verify(target: Path) -> str:
 
 def rollback(target: Path) -> str:
     target = validate_target(target)
+    with operation_lock(target):
+        return _rollback_locked(target)
+
+
+def _rollback_locked(target: Path) -> str:
     state = read_state(target)
     previous = state["previous"]
     if previous is None:
@@ -222,7 +253,12 @@ def uninstall(target: Path, confirmation: str) -> str:
     if confirmation != "UNINSTALL":
         raise ValueError("Explicit UNINSTALL confirmation is required")
     require_managed(target)
-    allowed = {".gh-engineer-managed", "state.json", "releases"}
+    with operation_lock(target):
+        return _uninstall_locked(target)
+
+
+def _uninstall_locked(target: Path) -> str:
+    allowed = {".gh-engineer-managed", "state.json", "releases", ".installer.lock"}
     if any(entry.name not in allowed for entry in target.iterdir()):
         raise ValueError("Unexpected user files exist; refusing uninstall")
     releases = target / "releases"
@@ -235,8 +271,15 @@ def uninstall(target: Path, confirmation: str) -> str:
                     or (slot / ".slot-managed").read_text() != SLOT_MARKER
                     or any(entry.name not in {"venv", ".slot-managed"} for entry in slot.iterdir())):
                 raise ValueError("Unrecognized release content; refusing uninstall")
-    shutil.rmtree(target)
-    return "Managed environments removed; external workspace and credentials unchanged"
+    # The outer lock is removed by its owner after this operation completes.
+    for entry in target.iterdir():
+        if entry.name == ".installer.lock":
+            continue
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    return "Managed environments removed; empty installation directory retained"
 
 
 def main(argv: list[str] | None = None) -> int:
