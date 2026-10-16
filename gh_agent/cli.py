@@ -784,12 +784,12 @@ def menu(args) -> None:
                 repo = getattr(args, "repo", None) or input("Repository OWNER/REPO: ").strip()
                 issue_text = input("Issue number: ").strip()
                 model = input("Model identifier: ").strip()
-                files = input("Allowed paths (space-separated, no globs): ").split()
+                scope_files = input("Allowed paths (space-separated, no globs): ").split()
                 output = input("Proposal JSON destination (outside checkout): ").strip()
                 if not issue_text.isdecimal() or len(issue_text) > 12:
                     raise AgentError("Issue must contain 1-12 decimal digits")
                 prepare(SimpleNamespace(checkout=checkout, repo=repo, issue=int(issue_text),
-                                        model=model, allowed_file=files, output=output,
+                                        model=model, allowed_file=scope_files, output=output,
                                         json=False))
         except (AgentError, FileNotFoundError, PermissionError) as exc:
             print("CHECK STOPPED:", str(exc))
