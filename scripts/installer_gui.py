@@ -100,7 +100,7 @@ def main() -> None:
             confirm = "UNINSTALL"
         else:
             confirm = ""
-        snapshot = (Path(target.get()), Path(wheel.get()), digest.get().strip())
+        snapshot = (Path(target.get()), Path(wheel.get()), digest.get().strip().lower())
         set_busy(True)
         status.set(f"{action.capitalize()} running locally…")
 
