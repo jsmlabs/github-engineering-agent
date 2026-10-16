@@ -93,7 +93,7 @@ def main() -> None:
         def worker():
             try:
                 if action in ("install", "update", "repair"):
-                    result = install(*snapshot)
+                    result = install(*snapshot, repair=action == "repair")
                 elif action == "preview":
                     result = preview(*snapshot)
                 elif action == "verify":
