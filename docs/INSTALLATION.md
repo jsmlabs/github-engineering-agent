@@ -14,10 +14,11 @@
 
 ## Environment readiness
 
-Run `python scripts/setup_check.py --json` to inspect Python compatibility, Git/Docker CLI presence, and GitHub/OpenAI credential **presence only**. No external requests, secret values, permissions or configuration changes occur. The same check is available as **Environment** in the GUI.
+Run `python scripts/setup_check.py --json` to inspect Python compatibility, Git/Docker CLI presence, and GitHub/OpenAI credential **presence only**. No external requests, secret values, permissions or configuration changes occur. The same check is available as **Environment** in the GUI. Choose **Preview** to inspect the selected local wheel, existing installation version, and requested target without changing files or contacting a provider.
 
 ## Usage
 ```bash
+python scripts/installer.py preview --wheel /absolute/release.whl --sha256 CHECKSUM
 python scripts/installer.py install --wheel /absolute/release.whl --sha256 CHECKSUM
 python scripts/installer.py verify
 python scripts/installer.py update --wheel /absolute/new-release.whl --sha256 CHECKSUM
