@@ -31,7 +31,7 @@ class InstallerTests(unittest.TestCase):
                                  "Name: github-engineering-agent\nVersion: 0.2.0\n")
             digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
             self.assertEqual(installer.validate_wheel(wheel, digest)[1], digest)
-            with self.assertRaisesRegex(ValueError, "integrity"):
+            with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
                 installer.validate_wheel(wheel, "0" * 64)
 
     def test_uninstall_refuses_unknown_files_and_requires_confirmation(self):
@@ -42,7 +42,7 @@ class InstallerTests(unittest.TestCase):
             (target / "keep.txt").write_text("personal")
             with self.assertRaisesRegex(ValueError, "confirmation"):
                 installer.uninstall(target, "")
-            with self.assertRaisesRegex(ValueError, "Unknown files"):
+            with self.assertRaisesRegex(ValueError, "Unexpected user files"):
                 installer.uninstall(target, "UNINSTALL")
             self.assertTrue((target / "keep.txt").exists())
 
