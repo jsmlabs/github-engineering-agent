@@ -51,6 +51,20 @@ class InstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "distribution metadata"):
                 installer.validate_wheel(wheel, digest)
 
+    def test_wheel_archive_resource_limits(self):
+        with tempfile.TemporaryDirectory() as d:
+            wheel = Path(d) / "github_engineering_agent-0.2.0-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("github_engineering_agent-0.2.0.dist-info/METADATA",
+                                 "Name: github-engineering-agent\nVersion: 0.2.0\n")
+            digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            with patch.object(installer, "MAX_EXPANDED_BYTES", 5):
+                with self.assertRaisesRegex(ValueError, "extraction budget"):
+                    installer.validate_wheel(wheel, digest)
+            with patch.object(installer, "MAX_WHEEL_BYTES", 5):
+                with self.assertRaisesRegex(ValueError, "maximum allowed size"):
+                    installer.validate_wheel(wheel, digest)
+
     def test_uninstall_refuses_unknown_files_and_requires_confirmation(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "managed"
