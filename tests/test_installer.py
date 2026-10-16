@@ -172,6 +172,35 @@ class InstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "previous release"):
                 installer.rollback(target)
 
+    def test_read_state_rejects_ambiguous_schema_and_invalid_json(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as directory:
+            target = Path(directory) / "managed"
+            target.mkdir()
+            (target / ".gh-engineer-managed").write_text(installer.MARKER)
+            state_file = target / "state.json"
+            cases = (
+                '{"schema":true,"active":null,"previous":null,"versions":{}}',
+                '{"schema":1,"active":null,"previous":null,"versions":{},"schema":1}',
+                '{"schema":1,"active":null,"previous":null,"versions":{"x":1,"x":2}}',
+                '{"schema":1,"active":null,"versions":{}}',
+                '{"schema":1,"active":null,"previous":null,"versions":{},"extra":NaN}',
+            )
+            for raw in cases:
+                with self.subTest(state=raw):
+                    state_file.write_text(raw, encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        installer.read_state(target)
+                    self.assertEqual(state_file.read_text(encoding="utf-8"), raw)
+
+    def test_read_state_refuses_oversized_content(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as directory:
+            target = Path(directory) / "managed"
+            target.mkdir()
+            (target / ".gh-engineer-managed").write_text(installer.MARKER)
+            (target / "state.json").write_bytes(b" " * (installer.MAX_STATE_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "maximum size"):
+                installer.read_state(target)
+
     def test_atomic_state_update_and_validated_restore(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "installed"
