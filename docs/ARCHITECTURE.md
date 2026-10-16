@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Security](../SECURITY.md) · [Verification](../VERIFICATION.md)
 
-**Implemented contract for development package metadata `0.3.0.dev3` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
+**Implemented contract for development package metadata `0.3.0.dev4` (unreleased; last prior release baseline `0.2.0`).** One local Python CLI process orchestrates Git, bounded HTTPS calls and private JSON state. It is **not** a server, background agent, job queue, deployment service or automatic merger.
 
 ## System overview
 
@@ -144,3 +144,8 @@ JSON source parsing and Python AST validation are **syntax checks** only. There 
 **Unsupported:** file deletion, rename/move operations, unapproved/unknown hidden paths, model-suggested command execution, autonomous reviews/merges/deployments, background jobs, automatic target-test discovery, complete secret detection, cryptographic attestation and generalized recovery.
 
 Use [Verification](../VERIFICATION.md) for observed results, and [Security](../SECURITY.md) for operational safeguards and incident handling.
+
+
+### GUI local inspection execution
+
+The optional Tkinter desktop delegates allowlisted local inspections to isolated, bounded Python child processes on worker threads. Completion data is marshalled through a queue to the Tkinter event loop. One operation at a time is permitted; no additional remote, write, or approval authority is introduced. File-search results are discarded when inputs change before completion.
