@@ -25,6 +25,9 @@ APP_DIR = "GitHubEngineeringAgent"
 MARKER = "github-engineering-agent managed installation v2\n"
 SLOT_MARKER = "managed release slot v1\n"
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+MAX_WHEEL_BYTES = 64 * 1024 * 1024
+MAX_EXPANDED_BYTES = 256 * 1024 * 1024
+MAX_WHEEL_FILES = 5000
 
 
 def default_target() -> Path:
@@ -73,14 +76,21 @@ def validate_wheel(path: Path, expected_sha256: str) -> tuple[Path, str, str]:
     wheel = path.expanduser().resolve(strict=True)
     if not wheel.is_file() or wheel.suffix != ".whl":
         raise ValueError("A local .whl file is required")
+    if wheel.stat().st_size > MAX_WHEEL_BYTES:
+        raise ValueError("Wheel exceeds maximum allowed size")
     with wheel.open("rb") as stream:
         actual = hashlib.file_digest(stream, "sha256").hexdigest()
     if actual != expected_sha256:
         raise ValueError("Release wheel SHA-256 mismatch")
     with zipfile.ZipFile(wheel) as archive:
-        paths = archive.namelist()
-        if any(x.startswith("/") or ".." in Path(x).parts or "\\" in x for x in paths):
+        entries = archive.infolist()
+        if len(entries) > MAX_WHEEL_FILES or sum(item.file_size for item in entries) > MAX_EXPANDED_BYTES:
+            raise ValueError("Wheel archive exceeds extraction budget")
+        paths = [item.filename for item in entries]
+        if any(x.startswith("/") or ".." in Path(x).parts or "\\" in x or ":" in x or any(ord(c) < 32 for c in x) for x in paths):
             raise ValueError("Wheel contains an unsafe archive member")
+        if archive.testzip() is not None:
+            raise ValueError("Wheel contains corrupted archive content")
         metadata = [x for x in paths if x.startswith("github_engineering_agent-") and x.endswith(".dist-info/METADATA")]
         if len(metadata) != 1:
             raise ValueError("Unexpected wheel distribution")
