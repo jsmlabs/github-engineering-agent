@@ -21,6 +21,12 @@ def validate_release_input(wheel: str, digest: str) -> str | None:
     return None
 
 
+def maintenance_message(action: str, succeeded: bool) -> str:
+    """Report an action outcome without implying any remote verification."""
+    return (f"{action.capitalize()} completed locally" if succeeded else
+            f"{action.capitalize()} failed · review the details below")
+
+
 def main() -> None:
     root = tk.Tk()
     root.title("GitHub Engineering Agent · Installation Manager")
@@ -66,8 +72,7 @@ def main() -> None:
         except Empty:
             pass
         else:
-            status.set(f"{action.capitalize()} completed locally" if kind == "ok" else
-                       f"{action.capitalize()} failed · review the details below")
+            status.set(maintenance_message(action, kind == "ok"))
             show(message)
             set_busy(False)
         root.after(100, poll_results)
@@ -164,6 +169,10 @@ def main() -> None:
             root.clipboard_append(value)
     ttk.Button(footer, text="Copy details", command=copy_details).pack(side="right")
     root.bind("<Control-Shift-C>", lambda _event: copy_details())
+    root.bind("<Control-Key-1>", lambda _event: buttons[0].invoke() if not busy else None)
+    root.bind("<Control-Key-6>", lambda _event: buttons[5].invoke() if not busy else None)
+    root.bind("<Control-Key-7>", lambda _event: buttons[6].invoke() if not busy else None)
+    ttk.Label(footer, text="Ctrl+1 Environment · Ctrl+6 Status · Ctrl+7 Verify").pack(side="left", padx=(12, 0))
 
     def close():
         if busy:
