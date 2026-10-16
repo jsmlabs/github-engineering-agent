@@ -7,6 +7,10 @@ from gh_agent import gui
 
 
 class GuiContractTests(unittest.TestCase):
+    def test_inspection_status_distinguishes_local_success_and_failure(self):
+        self.assertEqual(gui.inspection_status("workspace", True), "workspace: complete · local only")
+        self.assertEqual(gui.inspection_status("workspace", False), "workspace: failed · local only")
+
     def test_known_actions_are_all_configured(self):
         self.assertEqual(set(gui.OPTIONS), set(gui.READ_ONLY))
 
