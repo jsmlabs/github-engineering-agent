@@ -28,6 +28,20 @@ HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 MAX_WHEEL_BYTES = 64 * 1024 * 1024
 MAX_EXPANDED_BYTES = 256 * 1024 * 1024
 MAX_WHEEL_FILES = 5000
+MAX_STATE_BYTES = 256_000
+
+
+def _unique_state_keys(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate installation state key")
+        result[key] = value
+    return result
+
+
+def _reject_state_constant(value: str) -> None:
+    raise ValueError(f"Invalid installation state JSON constant: {value}")
 
 
 def default_target() -> Path:
@@ -123,11 +137,21 @@ def read_state(target: Path) -> dict:
         raise ValueError("Symlinked installation state is not allowed")
     if not state_file.is_file():
         return {"schema": 1, "active": None, "previous": None, "versions": {}}
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    if (type(state) is not dict or state.get("schema") != 1
+    with state_file.open("rb") as handle:
+        raw = handle.read(MAX_STATE_BYTES + 1)
+    if len(raw) > MAX_STATE_BYTES:
+        raise ValueError("Installation state exceeds maximum size; no changes made")
+    try:
+        state = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_state_keys,
+                           parse_constant=_reject_state_constant)
+    except RecursionError as exc:
+        raise ValueError("Installation state exceeds nesting limit; no changes made") from exc
+    if (type(state) is not dict or type(state.get("schema")) is not int
+            or state["schema"] != 1
+            or not {"active", "previous", "versions"}.issubset(state)
             or any(x is not None and (type(x) is not str or not HEX64.fullmatch(x))
-                   for x in (state.get("active"), state.get("previous")))
-            or type(state.get("versions")) is not dict
+                   for x in (state["active"], state["previous"]))
+            or type(state["versions"]) is not dict
             or any(not HEX64.fullmatch(k) or type(v) is not str
                    for k, v in state["versions"].items())):
         raise ValueError("Invalid installation state; no changes made")
