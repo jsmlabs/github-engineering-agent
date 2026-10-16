@@ -6,6 +6,12 @@
 - No registry entries, system service, admin privileges, self-update discovery, hidden download, credential storage, or global PATH modification.
 - The application is installed in a dedicated user-data directory containing a virtual environment.
 
+## One-click entry points
+
+- Windows 10/11: double-click `install-windows.cmd` from the extracted repository. It opens the optional Tk maintenance window when Python/Tk are available.
+- macOS/Linux: run `sh ./install-unix.sh` from the repository root.
+- Both launchers are frontend entry points only. They do not download or install Python, Git or release files; supply a trusted local wheel and checksum in the interface.
+
 ## Usage
 ```bash
 python scripts/installer.py install --wheel /absolute/release.whl --sha256 CHECKSUM
