@@ -32,6 +32,12 @@ python scripts/installer_gui.py
 
 For a custom install location, provide `--target /path/under/user/home`. Uninstall refuses any unknown top-level entries. Install/repair also reject symlinked ownership markers and unexpected release-slot entries, preserving unrelated files. It removes the managed virtual environment, so keep personal files elsewhere.
 
+## Offline package verification
+
+From the repository checkout, run `python scripts/verify_package.py` with Python 3.11+ and an already-installed build backend compatible with `pyproject.toml` (`setuptools>=70`). The script disables package-index access, copies the packaging source to a temporary directory, builds one wheel, checks distribution version and console-entry-point metadata, installs it without dependencies into an isolated temporary venv and executes both help commands. The temporary directory is removed on exit. A distinct GitHub Actions package matrix exercises Python 3.11 on Ubuntu, macOS and Windows.
+
+This verifies that the local wheel is installable in the checked environments, not cryptographic publisher identity, trusted artifact distribution, GUI operability or live API integration. No release asset is uploaded by this check.
+
 ## Known limitations
 - The installer is an **offline preview**, not a completed one-click distribution package.
 - The expected hash must come from a trusted channel separate from the wheel; SHA-256 alone does not establish publisher identity. The installer also bounds wheel size (64 MiB), expanded archive content (256 MiB), and archive entry count (5,000), and verifies archive CRCs before invoking pip. Before pip runs, the selected wheel is copied to a private temporary directory and independently re-verified, so concurrent modification of the original path cannot change the artifact pip uses.
