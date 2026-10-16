@@ -1,5 +1,6 @@
 """Headless GUI argument-contract regression tests."""
 import unittest
+import subprocess
 from unittest.mock import patch
 
 from gh_agent import gui
@@ -52,6 +53,33 @@ class GuiContractTests(unittest.TestCase):
         self.assertFalse(gui.selection_is_current([], checkout, checkout))
         self.assertTrue(gui.selection_is_current(["src/app.py"], checkout, checkout))
         self.assertFalse(gui.selection_is_current(["src/app.py"], checkout, "../another-checkout"))
+
+
+    def test_subprocess_only_runs_allowlisted_local_actions(self):
+        with patch("gh_agent.gui.subprocess.run") as run:
+            with self.assertRaises(ValueError):
+                gui.inspect_process("publish", ["--approve-publish"])
+            run.assert_not_called()
+
+    def test_subprocess_uses_argument_vector_and_json(self):
+        completed = subprocess.CompletedProcess([], 0, '{"files":[]}', "")
+        with patch("gh_agent.gui.subprocess.run", return_value=completed) as run:
+            result = gui.inspect_process("files", ["--checkout", ".", "--search", "src", "--limit", "50"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"], {"files": []})
+        args, kwargs = run.call_args
+        self.assertEqual(args[0][-1], "--json")
+        self.assertEqual(args[0][2:4], ["gh_agent", "files"])
+        self.assertFalse(kwargs["check"])
+        self.assertEqual(kwargs["timeout"], 60)
+        self.assertNotIn("shell", kwargs)
+
+    def test_subprocess_timeout_and_failed_status(self):
+        with patch("gh_agent.gui.subprocess.run", side_effect=subprocess.TimeoutExpired(["python"], 60)):
+            self.assertIn("timed out", gui.inspect_process("workspace")["error"])
+        failed = subprocess.CompletedProcess([], 2, "", "Workspace unavailable")
+        with patch("gh_agent.gui.subprocess.run", return_value=failed):
+            self.assertEqual(gui.inspect_process("workspace"), {"ok": False, "error": "Workspace unavailable"})
 
     def test_blocked_command_never_reaches_cli(self):
         with patch("gh_agent.cli.main") as cli:
