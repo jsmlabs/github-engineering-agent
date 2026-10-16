@@ -194,6 +194,15 @@ def _install_locked(target: Path, wheel: Path, digest: str, version: str, state:
         slot.mkdir(parents=True)
         (slot / ".slot-managed").write_text(SLOT_MARKER, encoding="utf-8")
     python = python_in(slot)
+    if digest in state["versions"]:
+        if state["versions"][digest] != version:
+            raise ValueError("Existing wheel digest has conflicting version metadata")
+        verify_slot(slot, version)
+        if state["active"] != digest:
+            state["previous"] = state["active"]
+            state["active"] = digest
+            write_state(target, state)
+        return f"Existing version {version} verified; no reinstall performed"
     if not python.is_file():
         venv.EnvBuilder(with_pip=True).create(slot / "venv")
     # Source wheel is rechecked just before pip, though external callers must
