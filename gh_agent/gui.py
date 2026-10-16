@@ -9,6 +9,30 @@ import sys
 
 READ_ONLY = frozenset({"workspace", "files", "dashboard", "prepare", "commands", "recipes", "guide"})
 
+# Arguments are data, never commands. No permission/remote switches are exposed.
+OPTIONS = {
+    "workspace": frozenset({"--checkout", "--repo"}),
+    "files": frozenset({"--checkout", "--repo", "--search", "--limit"}),
+    "dashboard": frozenset({"--checkout", "--proposal"}),
+    "prepare": frozenset({"--checkout", "--repo", "--issue", "--model", "--output", "--allowed-file"}),
+    "commands": frozenset({"--group", "--search"}),
+    "recipes": frozenset({"--topic"}),
+    "guide": frozenset(),
+}
+
+
+def validate_arguments(action: str, args: list[str] | tuple[str, ...]) -> None:
+    """Fail closed before invoking the CLI, including for unexpected options."""
+    validate_arguments(action, args)
+    allowed = OPTIONS[action]
+    if len(args) % 2:
+        raise ValueError("GUI arguments must be option/value pairs")
+    for i in range(0, len(args), 2):
+        option, value = args[i:i + 2]
+        if option not in allowed or not value or value.startswith("--") or any(ord(c) < 32 for c in value):
+            raise ValueError("Unexpected or invalid GUI option/value")
+
+
 
 def inspect(action: str, args: list[str] | tuple[str, ...] = ()) -> dict:
     """Run an explicit local-only CLI command and return its result."""
