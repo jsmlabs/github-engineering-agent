@@ -9,6 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMANDS = [
     [sys.executable, "-m", "compileall", "-q", "gh_agent", "tests"],
     [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+    [sys.executable, "-m", "py_compile", "scripts/installer.py", "scripts/installer_gui.py", "scripts/setup_check.py"],
+    [sys.executable, "scripts/installer.py", "--help"],
+    [sys.executable, "scripts/setup_check.py", "--json"],
     [sys.executable, "-m", "gh_agent", "--help"],
     [sys.executable, "-m", "gh_agent"],
     [sys.executable, "-m", "gh_agent", "guide"],
