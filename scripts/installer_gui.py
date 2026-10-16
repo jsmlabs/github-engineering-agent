@@ -7,14 +7,15 @@ from queue import Empty, Queue
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from setup_check import snapshot as setup_snapshot
 from installer import default_target, install, rollback, status as install_status, uninstall, verify
 
 
 def main() -> None:
     root = tk.Tk()
     root.title("GitHub Engineering Agent · Installation Manager")
-    root.geometry("900x500")
-    root.minsize(760, 440)
+    root.geometry("980x520")
+    root.minsize(840, 460)
     target = tk.StringVar(value=str(default_target()))
     wheel = tk.StringVar()
     digest = tk.StringVar()
@@ -77,6 +78,9 @@ def main() -> None:
                     result = verify(snapshot[0])
                 elif action == "status":
                     result = install_status(snapshot[0])
+                elif action == "setup":
+                    import json
+                    result = json.dumps(setup_snapshot(), indent=2, sort_keys=True)
                 elif action == "rollback":
                     result = rollback(snapshot[0])
                 else:
@@ -88,7 +92,7 @@ def main() -> None:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    for title, action in (("Install", "install"), ("Update", "update"),
+    for title, action in (("Environment", "setup"), ("Install", "install"), ("Update", "update"),
                           ("Repair", "repair"), ("Status", "status"),
                           ("Rollback", "rollback"), ("Verify", "verify"),
                           ("Uninstall", "uninstall")):
