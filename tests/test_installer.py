@@ -38,13 +38,37 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
             target = Path(d) / "managed"
             target.mkdir()
-            (target / ".gh-engineer-managed").write_text("github-engineering-agent managed installation v1\n")
+            (target / ".gh-engineer-managed").write_text("github-engineering-agent managed installation v2\n")
             (target / "keep.txt").write_text("personal")
             with self.assertRaisesRegex(ValueError, "confirmation"):
                 installer.uninstall(target, "")
             with self.assertRaisesRegex(ValueError, "Unknown files"):
                 installer.uninstall(target, "UNINSTALL")
             self.assertTrue((target / "keep.txt").exists())
+
+    def test_initial_state_and_no_rollback(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d) / "installed"
+            target.mkdir()
+            (target / ".gh-engineer-managed").write_text(installer.MARKER)
+            state = installer.read_state(target)
+            self.assertIsNone(state["active"])
+            with self.assertRaisesRegex(ValueError, "previous release"):
+                installer.rollback(target)
+
+    def test_atomic_state_update_and_validated_restore(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as d:
+            target = Path(d) / "installed"
+            target.mkdir()
+            (target / ".gh-engineer-managed").write_text(installer.MARKER)
+            digest = "a" * 64
+            state = {"schema": 1, "active": digest, "previous": None,
+                     "versions": {digest: "0.2.0"}}
+            installer.write_state(target, state)
+            self.assertEqual(installer.read_state(target), state)
+            (target / "state.json.tmp").write_text("interrupted")
+            with self.assertRaisesRegex(ValueError, "Interrupted"):
+                installer.write_state(target, state)
 
     def test_verify_refuses_unmanaged_directory(self):
         with tempfile.TemporaryDirectory(dir=Path.home()) as d:
