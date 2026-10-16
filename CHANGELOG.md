@@ -2,9 +2,16 @@
 
 [← README](README.md) · [Verification evidence](VERIFICATION.md) · [Security](SECURITY.md)
 
-Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev4** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
+Notable changes are grouped by release. **`Unreleased` is not a published release.** [`pyproject.toml`](pyproject.toml) now declares development metadata **0.3.0.dev5** to reflect the new CLI/GUI and installation capabilities since 0.2.0; this is not a tag, signed artifact or production approval.
 
 ## Unreleased
+
+### Desktop worker failure recovery
+
+- Convert unexpected local-inspection worker failures into recoverable generic status without disclosing exception content.
+- Preserve selected file scope when another search is requested during a running inspection; prevent closing while a bounded inspection is active.
+- Add offline regression checks for worker result handling, advancing unpublished development metadata to **0.3.0.dev5**. No release is created.
+
 
 ### Responsive desktop inspection (unreleased)
 
