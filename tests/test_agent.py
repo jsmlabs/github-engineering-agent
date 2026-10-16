@@ -237,6 +237,95 @@ class AgentTest(unittest.TestCase):
         self.assertIn("COMMAND REFERENCE", out.getvalue())
         self.assertIn("Menu closed", out.getvalue())
 
+    def test_workspace_readiness_and_dirty_state_json(self):
+        args = ["workspace", "--checkout", str(self.checkout),
+                "--repo", "example/safe-repo", "--json"]
+        with (redirect_stdout(StringIO()) as out,
+              patch.object(cli, "GitHub") as github,
+              patch.object(cli, "Model") as model):
+            self.assertEqual(cli.main(args), 0)
+            github.assert_not_called()
+            model.assert_not_called()
+        result = json.loads(out.getvalue())
+        self.assertTrue(result["ready_local"])
+        self.assertTrue(result["clean"])
+        self.assertEqual(result["origin_identity"], "MATCHED_LOCAL")
+        self.assertEqual(result["head"], self.base)
+        self.assertFalse(result["network_checked"])
+        (self.checkout / "untracked.tmp").write_text("local", encoding="utf-8")
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(cli.main(args), 0)
+        result = json.loads(out.getvalue())
+        self.assertFalse(result["ready_local"])
+        self.assertFalse(result["clean"])
+        self.assertEqual(result["origin_identity"], "NOT_CHECKED_DIRTY")
+
+    def test_workspace_refuses_bad_repo_identity(self):
+        with self.assertRaisesRegex(AgentError, "Origin does not match"):
+            cli.workspace(argparse.Namespace(checkout=str(self.checkout),
+                                             repo="someone/other", json=False))
+
+    def test_prepare_preview_validates_scope_and_does_not_upload(self):
+        args = ["prepare", "--checkout", str(self.checkout),
+                "--repo", "example/safe-repo", "--issue", "7",
+                "--model", "gpt-test.1", "--allowed-file", "app.py",
+                "--allowed-file", "src/new.py",
+                "--output", str(self.planfile), "--json"]
+        with (redirect_stdout(StringIO()) as out,
+              patch.object(cli, "GitHub") as github,
+              patch.object(cli, "Model") as model):
+            self.assertEqual(cli.main(args), 0)
+            github.assert_not_called()
+            model.assert_not_called()
+        result = json.loads(out.getvalue())
+        self.assertEqual(result["action"], "PLAN_PREVIEW_ONLY")
+        self.assertEqual(result["allowed_files"], ["app.py", "src/new.py"])
+        self.assertNotIn("--allow-source-upload", result["argv"])
+        self.assertFalse(result["source_upload_authorized"])
+        self.assertFalse(result["executed"])
+        self.assertFalse(self.planfile.exists())
+
+    def test_prepare_rejects_unsafe_plan_inputs(self):
+        good = dict(checkout=str(self.checkout), repo="example/safe-repo", issue=7,
+                    model="gpt-test", allowed_file=["app.py"],
+                    output=str(self.planfile), json=False)
+        bad_cases = (
+            ({"issue": 0}, "Issue must"),
+            ({"issue": True}, "Issue must"),
+            ({"model": "bad\nmodel"}, "model identifier"),
+            ({"allowed_file": ["../secret.py"]}, "path"),
+            ({"allowed_file": ["app.py", "app.py"]}, "distinct"),
+            ({"allowed_file": ["unknown.xyz"]}, "Extension"),
+            ({"output": str(self.checkout / "plan.json")}, "outside the checkout"),
+        )
+        for fields, expected in bad_cases:
+            with self.subTest(fields=fields):
+                with self.assertRaisesRegex(AgentError, expected):
+                    cli.prepare(argparse.Namespace(**{**good, **fields}))
+        self.planfile.write_text("existing", encoding="utf-8")
+        with self.assertRaisesRegex(AgentError, "must not exist"):
+            cli.prepare(argparse.Namespace(**good))
+
+    def test_menu_workspace_and_plan_preview_never_execute(self):
+        class FakeTTY(StringIO):
+            def isatty(self):
+                return True
+        inp = FakeTTY("7\n8\nexample/safe-repo\n7\ngpt-test\napp.py\n"
+                      + str(self.planfile) + "\n0\n")
+        out = FakeTTY()
+        with (patch.object(cli.sys, "stdin", inp), patch.object(cli.sys, "stdout", out),
+              patch.object(cli, "plan") as plan,
+              patch.object(cli, "publish") as publish,
+              patch.object(cli, "Model") as model):
+            self.assertEqual(cli.main(["menu", "--checkout", str(self.checkout),
+                                       "--no-color"]), 0)
+            plan.assert_not_called()
+            publish.assert_not_called()
+            model.assert_not_called()
+        self.assertIn("WORKSPACE OVERVIEW", out.getvalue())
+        self.assertIn("PLAN PREVIEW (NOT EXECUTED)", out.getvalue())
+        self.assertFalse(self.planfile.exists())
+
     def test_cli_checkout_defaults_and_explicit_approvals(self):
         for argv in (
             ["review", "--proposal", str(self.planfile)],
