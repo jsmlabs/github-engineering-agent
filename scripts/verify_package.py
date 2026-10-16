@@ -5,6 +5,7 @@ from email.parser import Parser
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,10 +32,18 @@ def main() -> int:
     env.update(PIP_NO_INDEX="1", PIP_DISABLE_PIP_VERSION_CHECK="1", PIP_NO_INPUT="1")
     with tempfile.TemporaryDirectory(prefix="gh-engineer-package-") as directory:
         work = Path(directory)
+        # Build a disposable source snapshot: setuptools may write egg-info
+        # in its source tree, so verification must not modify the checkout.
+        staged = work / "source"
+        staged.mkdir()
+        shutil.copytree(ROOT / "gh_agent", staged / "gh_agent",
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copy2(ROOT / "pyproject.toml", staged / "pyproject.toml")
+        shutil.copy2(ROOT / "README.md", staged / "README.md")
         wheels = work / "wheels"
         wheels.mkdir()
         run(sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation",
-            "--wheel-dir", str(wheels), str(ROOT), cwd=work, env=env)
+            "--wheel-dir", str(wheels), str(staged), cwd=work, env=env)
         artifacts = list(wheels.glob("*.whl"))
         if len(artifacts) != 1:
             raise RuntimeError(f"Expected exactly one wheel, got {len(artifacts)}")
